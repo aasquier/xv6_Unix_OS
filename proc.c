@@ -78,6 +78,8 @@ found:
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
 
+	p->start_ticks = ticks;
+
   return p;
 }
 
@@ -495,6 +497,26 @@ static char *states[] = {
   [ZOMBIE]    "zombie"
 };
 
+#ifdef CS333_P1
+// Procdump helper 
+static void
+elapsed(struct proc *p, char *state)
+{
+	uint time = ticks - p->start_ticks;
+	uint secs = time / 1000;
+	uint mils = time % 1000;
+
+  cprintf("%d\t%s\t%s\t", p->pid, state, p->name);
+
+	if((mils < 1000) && (mils > 99)) 
+		cprintf("%d.%d\t", secs, mils);	
+	else if((mils < 100) && (mils > 9))
+		cprintf("%d.0%d\t", secs, mils);	
+	else
+		cprintf("%d.00%d\t", secs, mils);	
+}
+#endif
+
 //PAGEBREAK: 36
 // Print a process listing to console.  For debugging.
 // Runs when user types ^P on console.
@@ -507,6 +529,11 @@ procdump(void)
   char *state;
   uint pc[10];
 
+	#ifdef CS333_P1
+	cprintf("\nPID\tState\tName\tElapsed\t PCs\n");
+	cprintf("---\t-----\t----\t-------\t ---\n");
+	#endif 
+
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->state == UNUSED)
       continue;
@@ -514,7 +541,13 @@ procdump(void)
       state = states[p->state];
     else
       state = "???";
+
+		#ifdef CS333_P1
+		elapsed(p, state);
+		#else
     cprintf("%d %s %s", p->pid, state, p->name);
+		#endif
+
     if(p->state == SLEEPING){
       getcallerpcs((uint*)p->context->ebp+2, pc);
       for(i=0; i<10 && pc[i] != 0; i++)
@@ -523,7 +556,6 @@ procdump(void)
     cprintf("\n");
   }
 }
-
 
 #ifdef CS333_P3P4
 static int
