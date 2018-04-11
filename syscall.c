@@ -55,7 +55,7 @@ int
 argptr(int n, char **pp, int size)
 {
   int i;
-  
+
   if(argint(n, &i) < 0)
     return -1;
   if((uint)i >= proc->sz || (uint)i+size > proc->sz)
@@ -155,7 +155,10 @@ char*  syscallnames[] = {
 [SYS_link]   = "link",
 [SYS_mkdir]  = "mkdir",
 [SYS_close]  = "close",
-[SYS_halt]   = "halt"
+[SYS_halt]   = "halt",
+#ifdef CS333_P1
+[SYS_date]   = "date"
+#endif
 };
 #endif
 

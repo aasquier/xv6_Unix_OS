@@ -77,9 +77,9 @@ found:
   p->context = (struct context*)sp;
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
-
+	#ifdef CS333_P1
 	p->start_ticks = ticks;
-
+	#endif
   return p;
 }
 
@@ -498,7 +498,7 @@ static char *states[] = {
 };
 
 #ifdef CS333_P1
-// Procdump helper 
+// Procdump helper
 static void
 elapsed(struct proc *p, char *state)
 {
@@ -508,12 +508,12 @@ elapsed(struct proc *p, char *state)
 
   cprintf("%d\t%s\t%s\t", p->pid, state, p->name);
 
-	if((mils < 1000) && (mils > 99)) 
-		cprintf("%d.%d\t", secs, mils);	
+	if((mils < 1000) && (mils > 99))
+		cprintf("%d.%d\t", secs, mils);
 	else if((mils < 100) && (mils > 9))
-		cprintf("%d.0%d\t", secs, mils);	
+		cprintf("%d.0%d\t", secs, mils);
 	else
-		cprintf("%d.00%d\t", secs, mils);	
+		cprintf("%d.00%d\t", secs, mils);
 }
 #endif
 
@@ -532,7 +532,7 @@ procdump(void)
 	#ifdef CS333_P1
 	cprintf("\nPID\tState\tName\tElapsed\t PCs\n");
 	cprintf("---\t-----\t----\t-------\t ---\n");
-	#endif 
+	#endif
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->state == UNUSED)

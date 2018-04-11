@@ -61,7 +61,7 @@ sys_sleep(void)
 {
   int n;
   uint ticks0;
-  
+
   if(argint(0, &n) < 0)
     return -1;
   ticks0 = ticks;
@@ -75,12 +75,12 @@ sys_sleep(void)
 }
 
 // return how many clock tick interrupts have occurred
-// since start. 
+// since start.
 int
 sys_uptime(void)
 {
   uint xticks;
-  
+
   xticks = ticks;
   return xticks;
 }
@@ -101,7 +101,7 @@ sys_date(void)
 	struct rtcdate *d;
 
 	if(argptr(0, (void*)&d, sizeof(struct rtcdate)) < 0)
-		return -1;	
+		return -1;
 	cmostime(d);
 		return 0;
 }
