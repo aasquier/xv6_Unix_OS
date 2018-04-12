@@ -66,8 +66,16 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+
 	#ifdef CS333_P1
 	uint start_ticks;						 // Global kernel ticks
+	#endif
+
+	#ifdef CS333_P2
+	uint gid;										 // User and
+	uint uid;                    //     Group IDs
+	uint cpu_ticks_total;				 // Timer variables to measure how long a process
+	uint cpu_ticks_in;					 //     has been actively used for
 	#endif
 };
 
