@@ -6,6 +6,9 @@
 #include "x86.h"
 #include "proc.h"
 #include "spinlock.h"
+#ifdef CS333_P2
+#include "uproc.h"
+#endif
 
 struct {
   struct spinlock lock;
@@ -89,6 +92,49 @@ found:
 
   return p;
 }
+
+#ifdef CS333_P2
+int
+getprocs(uint max, struct uproc* utable)
+{
+  struct proc *p;
+
+  acquire(&ptable.lock);
+	int i = 0;
+	p = ptable.proc;
+	cprintf("%d\n", utable[0].pid);
+  for(p = ptable.proc; p < &ptable.proc[NPROC] && i < max; p++){
+		if(p->state != UNUSED && p->state != EMBRYO){
+			utable[i].pid = p->pid;
+			utable[i].uid = p->uid;
+			utable[i].gid = p->gid;
+			if(p->parent)
+				utable[i].ppid = p->parent->pid;
+			else
+				utable[i].ppid = p->pid;
+			utable[i].elapsed_ticks = ticks - p->start_ticks;
+			utable[i].CPU_total_ticks = p->cpu_ticks_total;
+			utable[i].size = p->sz;
+			safestrcpy(utable[i].name, p->name, sizeof(p->name));
+
+			switch(p->state){
+				case UNUSED: safestrcpy(utable[i].state, "unused", 7); break;
+				case EMBRYO: safestrcpy(utable[i].state, "embryo", 7); break;
+				case SLEEPING: safestrcpy(utable[i].state, "sleep", 9); break;
+				case RUNNABLE: safestrcpy(utable[i].state, "runnable", 9); break;
+				case RUNNING: safestrcpy(utable[i].state, "run", 8); break;
+				case ZOMBIE: safestrcpy(utable[i].state, "zombie", 6); break;
+			  default: break;
+			}
+
+			i++;
+		}
+	}
+  release(&ptable.lock);
+	return i;
+
+}
+#endif
 
 //PAGEBREAK: 32
 // Set up first user process.
@@ -333,12 +379,12 @@ scheduler(void)
       switchuvm(p);
       p->state = RUNNING;
 
-      swtch(&cpu->scheduler, proc->context);
-      switchkvm();
-
 			#ifdef CS333_P2
 			p->cpu_ticks_in = ticks;
 			#endif
+
+      swtch(&cpu->scheduler, proc->context);
+      switchkvm();
 
       // Process is done running for now.
       // It should have changed its p->state before coming back.
