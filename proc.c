@@ -333,12 +333,12 @@ scheduler(void)
       switchuvm(p);
       p->state = RUNNING;
 
+      swtch(&cpu->scheduler, proc->context);
+      switchkvm();
+
 			#ifdef CS333_P2
 			p->cpu_ticks_in = ticks;
 			#endif
-
-      swtch(&cpu->scheduler, proc->context);
-      switchkvm();
 
       // Process is done running for now.
       // It should have changed its p->state before coming back.
@@ -531,28 +531,34 @@ procdumpP2(struct proc *p, char *state)
 	uint elapsed_time = ticks - p->start_ticks;
 	uint elapsed_secs = elapsed_time / 1000;
 	uint elapsed_mils = elapsed_time % 1000;
+	uint cpu_secs     = p->cpu_ticks_total / 1000;
+	uint cpu_mils     = p->cpu_ticks_total % 1000;
+	uint ppid 				= 0;
 
-  cprintf("%d\t%s\t%d\t%d\t%d\t", p->pid, p->name, p->uid, p->gid, p->pid);
+	if(!p->parent)
+		ppid = 1;
+	else
+		ppid = p->parent->pid;
+
+  cprintf("%d\t%s\t%d\t%d\t%d\t", p->pid, p->name, p->uid, p->gid, ppid);
 
 	if((elapsed_mils < 1000) && (elapsed_mils > 99))
-		cprintf("%d.%d\t\t", elapsed_secs, elapsed_mils);
+		cprintf("%d.%d\t  ", elapsed_secs, elapsed_mils);
 	else if((elapsed_mils < 100) && (elapsed_mils > 9))
-		cprintf("%d.0%d\t\t", elapsed_secs, elapsed_mils);
+		cprintf("%d.0%d\t  ", elapsed_secs, elapsed_mils);
 	else
-		cprintf("%d.00%d\t\t", elapsed_secs, elapsed_mils);
-
-	uint cpu_secs = p->cpu_ticks_total / 1000;
-	uint cpu_mils = p->cpu_ticks_total % 1000;
+		cprintf("%d.00%d\t  ", elapsed_secs, elapsed_mils);
 
 	if((cpu_mils < 1000) && (cpu_mils > 99))
-		cprintf("%d.%d\t", cpu_secs, cpu_mils);
+		cprintf("%d.%d\t\t", cpu_secs, cpu_mils);
 	else if((cpu_mils < 100) && (cpu_mils > 9))
-		cprintf("%d.0%d\t", cpu_secs, cpu_mils);
+		cprintf("%d.0%d\t\t", cpu_secs, cpu_mils);
 	else
-		cprintf("%d.00%d\t", cpu_secs, cpu_mils);
+		cprintf("%d.00%d\t\t", cpu_secs, cpu_mils);
 
 	cprintf("%s\t%d\t", p->name, p->sz);
 }
+
 #elif defined(CS333_P1)
 // Procdump helper
 static void
@@ -586,7 +592,7 @@ procdump(void)
   uint pc[10];
 
 	#if defined(CS333_P2)
-	#define HEADER "\nPID\tName\tUID\tGID\tPPID\tElapsed\t\tCPU\tState\tSize\t PCs\n"
+	#define HEADER "\nPID\tName\tUID\tGID\tPPID\tElapsed\t  CPU\t\tState\tSize\t PCs\n"
 	#elif defined(CS333_P1)
 	#define HEADER "\nPID\tState\tName\tElapsed\t PCs\n"
 	#else

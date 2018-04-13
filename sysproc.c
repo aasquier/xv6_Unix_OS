@@ -106,8 +106,7 @@ sys_date(void)
 		return 0;
 }
 #endif
-
-#ifdef CS333_P2
+#ifdef  CS333_P2
 uint
 sys_getuid(void)
 {
@@ -152,5 +151,11 @@ sys_setgid(void)
 
 	proc->gid = gid;
 		return 0;
+}
+
+int
+sys_getprocs(void)
+{
+	return 0;
 }
 #endif
