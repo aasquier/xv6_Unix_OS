@@ -100,18 +100,21 @@ getprocs(uint max, struct uproc* utable)
   struct proc *p;
 
   acquire(&ptable.lock);
+
 	int i = 0;
 	p = ptable.proc;
-	cprintf("%d\n", utable[0].pid);
+
   for(p = ptable.proc; p < &ptable.proc[NPROC] && i < max; p++){
 		if(p->state != UNUSED && p->state != EMBRYO){
 			utable[i].pid = p->pid;
 			utable[i].uid = p->uid;
 			utable[i].gid = p->gid;
+
 			if(p->parent)
 				utable[i].ppid = p->parent->pid;
 			else
 				utable[i].ppid = p->pid;
+
 			utable[i].elapsed_ticks = ticks - p->start_ticks;
 			utable[i].CPU_total_ticks = p->cpu_ticks_total;
 			utable[i].size = p->sz;
@@ -131,7 +134,10 @@ getprocs(uint max, struct uproc* utable)
 		}
 	}
   release(&ptable.lock);
-	return i;
+
+	// TODO Need to decide how to pass back a -1 for error conditions
+
+	return i;   // Return nummber of processes that were actally copied
 
 }
 #endif
