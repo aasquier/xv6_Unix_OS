@@ -6,7 +6,7 @@ int
 main(int argc, char ** argv)
 {
   if(argc < 2)
-    printf(1, "ran in 0.00 seconds\n\n");
+    printf(1, "ran in 0.000 seconds\n\n");
   else{
 
     uint in = uptime();

@@ -9,8 +9,13 @@ main(int argc, char ** argv)
 {
   int max;
 
-  if(argc > 1)
+  if(argc > 1){
     max = atoi(argv[1]);
+    if(max < 1){
+      printf(2, "Cannot have a negative maximum value for the ps command.");
+      return -1;
+    }
+  }
   else
     max = NPROC;   // Default max size is 64 unless otherwise specified
 
@@ -18,7 +23,7 @@ main(int argc, char ** argv)
 
   int size = getprocs(max, utable);
 
-  if(size <= 1)
+  if(size < 1)
     printf(2, "There was an error getting processes\n");
   else{
     printf(1, "\nPID\tName\t\tUID\tGID\tPPID\tElapsed\t  CPU\t\tState\tSize\n");

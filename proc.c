@@ -132,7 +132,7 @@ getprocs(uint max, struct uproc* utable)
   }
   release(&ptable.lock);
 
-  if(i <= 1)    // If no procs were copied we have an error because at least the init and sh procs should be running
+  if(i < 1)    // If no procs were copied we have an error because at least the init and sh procs should be running
     return -1;
   else
     return i;   // Return nummber of processes that were actally copied
