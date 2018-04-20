@@ -119,7 +119,7 @@ void            userinit(void);
 int             wait(void);
 void            wakeup(void*);
 void            yield(void);
-int 						getprocs(uint max, struct uproc* utable);
+int             getprocs(uint max, struct uproc* utable);
 
 // swtch.S
 void            swtch(struct context**, struct context*);

@@ -81,63 +81,61 @@ found:
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
 
-	#ifdef CS333_P1
-	p->start_ticks = ticks;
-	#endif
+  #ifdef CS333_P1
+  p->start_ticks = ticks;
+  #endif
 
-	#ifdef CS333_P2
-	p->cpu_ticks_total = 0;
+  #ifdef CS333_P2
+  p->cpu_ticks_total = 0;
   p->cpu_ticks_in    = 0;
-	#endif
+  #endif
 
   return p;
 }
-
 #ifdef CS333_P2
+// Function to copy pertinent info to a user version of the ptable (utable)
 int
 getprocs(uint max, struct uproc* utable)
 {
-  struct proc *p;
+  struct proc *p = ptable.proc;
+  uint i = 0;
 
   acquire(&ptable.lock);
 
-	int i = 0;
-	p = ptable.proc;
-
   for(p = ptable.proc; p < &ptable.proc[NPROC] && i < max; p++){
-		if(p->state != UNUSED && p->state != EMBRYO){
-			utable[i].pid = p->pid;
-			utable[i].uid = p->uid;
-			utable[i].gid = p->gid;
+    if(p->state != UNUSED && p->state != EMBRYO){
+      utable[i].pid = p->pid;
+      utable[i].uid = p->uid;
+      utable[i].gid = p->gid;
+      utable[i].elapsed_ticks = ticks - p->start_ticks;
+      utable[i].CPU_total_ticks = p->cpu_ticks_total;
+      utable[i].size = p->sz;
+      safestrcpy(utable[i].name, p->name, sizeof(p->name));
 
-			if(p->parent)
-				utable[i].ppid = p->parent->pid;
-			else
-				utable[i].ppid = p->pid;
+      if(p->parent)
+        utable[i].ppid = p->parent->pid;
+      else
+        utable[i].ppid = p->pid;
 
-			utable[i].elapsed_ticks = ticks - p->start_ticks;
-			utable[i].CPU_total_ticks = p->cpu_ticks_total;
-			utable[i].size = p->sz;
-			safestrcpy(utable[i].name, p->name, sizeof(p->name));
+      switch(p->state){
+        case UNUSED:   safestrcpy(utable[i].state, "unused", 7);   break;
+        case EMBRYO:   safestrcpy(utable[i].state, "embryo", 7);   break;
+        case SLEEPING: safestrcpy(utable[i].state, "sleep", 9);    break;
+        case RUNNABLE: safestrcpy(utable[i].state, "runble", 9);    break;
+        case RUNNING:  safestrcpy(utable[i].state, "run", 8);      break;
+        case ZOMBIE:   safestrcpy(utable[i].state, "zombie", 6);   break;
+        default:                                                    break;
+      }
 
-			switch(p->state){
-				case UNUSED: safestrcpy(utable[i].state, "unused", 7); break;
-				case EMBRYO: safestrcpy(utable[i].state, "embryo", 7); break;
-				case SLEEPING: safestrcpy(utable[i].state, "sleep", 9); break;
-				case RUNNABLE: safestrcpy(utable[i].state, "runnable", 9); break;
-				case RUNNING: safestrcpy(utable[i].state, "run", 8); break;
-				case ZOMBIE: safestrcpy(utable[i].state, "zombie", 6); break;
-			  default: break;
-			}
-
-			i++;
-		}
-	}
+      i++;
+    }
+  }
   release(&ptable.lock);
 
-	// TODO Need to decide how to pass back a -1 for error conditions
-
-	return i;   // Return nummber of processes that were actally copied
+  if(i <= 1)    // If no procs were copied we have an error because at least the init and sh procs should be running
+    return -1;
+  else
+    return i;   // Return nummber of processes that were actally copied
 
 }
 #endif
@@ -168,10 +166,10 @@ userinit(void)
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
 
-	#ifdef CS333_P2
-	p->uid = INIT_UID;
-	p->gid = INIT_GID;
-	#endif
+  #ifdef CS333_P2
+  p->uid = INIT_UID;
+  p->gid = INIT_GID;
+  #endif
 
   p->state = RUNNABLE;
 }
@@ -220,10 +218,10 @@ fork(void)
   np->parent = proc;
   *np->tf = *proc->tf;
 
-	#ifdef CS333_P2
-	np->uid = proc->uid;
-	np->gid = proc->gid;
-	#endif
+  #ifdef CS333_P2
+  np->uid = proc->uid;
+  np->gid = proc->gid;
+  #endif
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
@@ -385,9 +383,9 @@ scheduler(void)
       switchuvm(p);
       p->state = RUNNING;
 
-			#ifdef CS333_P2
-			p->cpu_ticks_in = ticks;
-			#endif
+      #ifdef CS333_P2
+      p->cpu_ticks_in = ticks;
+      #endif
 
       swtch(&cpu->scheduler, proc->context);
       switchkvm();
@@ -430,9 +428,9 @@ sched(void)
     panic("sched interruptible");
   intena = cpu->intena;
 
-	#ifdef CS333_P2
-	proc->cpu_ticks_total += ticks - proc->cpu_ticks_in;
-	#endif
+  #ifdef CS333_P2
+  proc->cpu_ticks_total += ticks - proc->cpu_ticks_in;
+  #endif
 
   swtch(&proc->context, cpu->scheduler);
   cpu->intena = intena;
@@ -577,57 +575,61 @@ static char *states[] = {
 };
 
 #if defined(CS333_P2)
+// Procdump helper for project 2
 static void
 procdumpP2(struct proc *p, char *state)
 {
-	uint elapsed_time = ticks - p->start_ticks;
-	uint elapsed_secs = elapsed_time / 1000;
-	uint elapsed_mils = elapsed_time % 1000;
-	uint cpu_secs     = p->cpu_ticks_total / 1000;
-	uint cpu_mils     = p->cpu_ticks_total % 1000;
-	uint ppid 				= 0;
+  uint elapsed_time = ticks - p->start_ticks;
+  uint elapsed_secs = elapsed_time / 1000;
+  uint elapsed_mils = elapsed_time % 1000;
+  uint cpu_secs     = p->cpu_ticks_total / 1000;
+  uint cpu_mils     = p->cpu_ticks_total % 1000;
+  uint ppid         = 0;
 
-	if(!p->parent)
-		ppid = 1;
-	else
-		ppid = p->parent->pid;
+  if(!p->parent)
+    ppid = 1;
+  else
+    ppid = p->parent->pid;
 
-  cprintf("%d\t%s\t%d\t%d\t%d\t", p->pid, p->name, p->uid, p->gid, ppid);
+  if(strlen(p->name) < 8)
+    cprintf("%d\t%s\t\t%d\t%d\t%d\t", p->pid, p->name, p->uid, p->gid, ppid);
+  else
+    cprintf("%d\t%s\t%d\t%d\t%d\t", p->pid, p->name, p->uid, p->gid, ppid);
 
-	if((elapsed_mils < 1000) && (elapsed_mils > 99))
-		cprintf("%d.%d\t  ", elapsed_secs, elapsed_mils);
-	else if((elapsed_mils < 100) && (elapsed_mils > 9))
-		cprintf("%d.0%d\t  ", elapsed_secs, elapsed_mils);
-	else
-		cprintf("%d.00%d\t  ", elapsed_secs, elapsed_mils);
+  if((elapsed_mils < 1000) && (elapsed_mils > 99))
+    cprintf("%d.%d\t  ", elapsed_secs, elapsed_mils);
+  else if((elapsed_mils < 100) && (elapsed_mils > 9))
+    cprintf("%d.0%d\t  ", elapsed_secs, elapsed_mils);
+  else
+    cprintf("%d.00%d\t  ", elapsed_secs, elapsed_mils);
 
-	if((cpu_mils < 1000) && (cpu_mils > 99))
-		cprintf("%d.%d\t\t", cpu_secs, cpu_mils);
-	else if((cpu_mils < 100) && (cpu_mils > 9))
-		cprintf("%d.0%d\t\t", cpu_secs, cpu_mils);
-	else
-		cprintf("%d.00%d\t\t", cpu_secs, cpu_mils);
+  if((cpu_mils < 1000) && (cpu_mils > 99))
+    cprintf("%d.%d\t\t", cpu_secs, cpu_mils);
+  else if((cpu_mils < 100) && (cpu_mils > 9))
+    cprintf("%d.0%d\t\t", cpu_secs, cpu_mils);
+  else
+    cprintf("%d.00%d\t\t", cpu_secs, cpu_mils);
 
-	cprintf("%s\t%d\t", p->name, p->sz);
+  cprintf("%s\t%d\t", state, p->sz);
 }
 
 #elif defined(CS333_P1)
-// Procdump helper
+// Procdump helper for project 1
 static void
 procdumpP1(struct proc *p, char *state)
 {
-	uint time = ticks - p->start_ticks;
-	uint secs = time / 1000;
-	uint mils = time % 1000;
+  uint time = ticks - p->start_ticks;
+  uint secs = time / 1000;
+  uint mils = time % 1000;
 
   cprintf("%d\t%s\t%s\t", p->pid, state, p->name);
 
-	if((mils < 1000) && (mils > 99))
-		cprintf("%d.%d\t", secs, mils);
-	else if((mils < 100) && (mils > 9))
-		cprintf("%d.0%d\t", secs, mils);
-	else
-		cprintf("%d.00%d\t", secs, mils);
+  if((mils < 1000) && (mils > 99))
+    cprintf("%d.%d\t", secs, mils);
+  else if((mils < 100) && (mils > 9))
+    cprintf("%d.0%d\t", secs, mils);
+  else
+    cprintf("%d.00%d\t", secs, mils);
 }
 #endif
 
@@ -643,15 +645,15 @@ procdump(void)
   char *state;
   uint pc[10];
 
-	#if defined(CS333_P2)
-	#define HEADER "\nPID\tName\tUID\tGID\tPPID\tElapsed\t  CPU\t\tState\tSize\t PCs\n"
-	#elif defined(CS333_P1)
-	#define HEADER "\nPID\tState\tName\tElapsed\t PCs\n"
-	#else
-	#define HEADER ""
-	#endif
+  #if defined(CS333_P2)
+  #define HEADER "\nPID\tName\t\tUID\tGID\tPPID\tElapsed\t  CPU\t\tState\tSize\t PCs\n"
+  #elif defined(CS333_P1)
+  #define HEADER "\nPID\tState\tName\tElapsed\t PCs\n"
+  #else
+  #define HEADER ""
+  #endif
 
-	cprintf(HEADER);
+  cprintf(HEADER);
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->state == UNUSED)
@@ -661,13 +663,13 @@ procdump(void)
     else
       state = "???";
 
-		#if defined(CS333_P2)
-		procdumpP2(p, state);
-		#elif defined(CS333_P1)
-		procdumpP1(p, state);
-		#else
+    #if defined(CS333_P2)
+    procdumpP2(p, state);
+    #elif defined(CS333_P1)
+    procdumpP1(p, state);
+    #else
     cprintf("%d %s %s", p->pid, state, p->name);
-		#endif
+    #endif
 
     if(p->state == SLEEPING){
       getcallerpcs((uint*)p->context->ebp+2, pc);

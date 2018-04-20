@@ -1,9 +1,9 @@
-// Example for testing part of CS333 P2. 
+// Example for testing part of CS333 P2.
 // This is by NO MEANS a complete test.
 #ifdef CS333_P2
 #include "types.h"
 #include "user.h"
-
+/*
 static void
 uidTest(uint nval)
 {
@@ -58,7 +58,7 @@ forkTest(uint nval)
     sleep(10 * TPS); // wait for child to exit before proceeding
 
 }
-
+*/
 static void
 invalidTest(uint nval)
 {
@@ -67,24 +67,38 @@ invalidTest(uint nval)
     printf(1, "SUCCESS! The setuid sytem call indicated failure\n");
   else
     printf(2, "FAILURE! The setuid system call indicates success\n");
+  sleep(5 * TPS);  // now type control-p
 
   printf(1, "Setting GID to %d. This test should FAIL\n", nval);
   if (setgid(nval) < 0)
     printf(1, "SUCCESS! The setgid sytem call indicated failure\n");
   else
     printf(2, "FAILURE! The setgid system call indicates success\n");
+  sleep(5 * TPS);  // now type control-p
 
   printf(1, "Setting UID to %d. This test should FAIL\n", -1);
+  if (setuid(-1) < 0)
+    printf(1, "SUCCESS! The setuid sytem call indicated failure\n");
+  else
+    printf(2, "FAILURE! The setgid system call indicates success\n");
+  sleep(5 * TPS);  // now type control-p
+
+  printf(1, "Setting GID to %d. This test should FAIL\n", -1);
   if (setgid(-1) < 0)
     printf(1, "SUCCESS! The setgid sytem call indicated failure\n");
   else
     printf(2, "FAILURE! The setgid system call indicates success\n");
+  sleep(5 * TPS);  // now type control-p
 }
 
 static int
 testuidgid(void)
 {
-  uint nval, ppid;
+
+  uint nval;
+/*  //uint ppid;
+  nval = 0;
+  uidTest(nval);
 
   // get/set uid test
   nval = 100;
@@ -92,16 +106,41 @@ testuidgid(void)
 
   // get/set gid test
   nval = 200;
+  uidTest(nval);
+
+  nval = 10000;
+  uidTest(nval);
+
+  nval = 32767;
+  uidTest(nval);
+
+  //uint ppid;
+  nval = 0;
   gidTest(nval);
+
+  // get/set uid test
+  nval = 100;
+  gidTest(nval);
+
+  // get/set gid test
+  nval = 200;
+  gidTest(nval);
+
+  nval = 10000;
+  gidTest(nval);
+
+  nval = 32767;
+  gidTest(nval);
+
 
   // getppid test
   ppid = getppid();
   printf(1, "My parent process is: %d\n", ppid);
 
-  // fork tests to demonstrate UID/GID inheritance 
+  // fork tests to demonstrate UID/GID inheritance
   nval = 111;
   forkTest(nval);
-
+*/
   // tests for invalid values for uid and gid
   nval = 32800;   // 32767 is max value
   invalidTest(nval);

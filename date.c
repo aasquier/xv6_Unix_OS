@@ -25,7 +25,7 @@ main(int argc, char *argv[])
 
   if (date(&r)) {
     printf(2,"Error: date call failed. %s at line %d\n",
-	__FILE__, __LINE__);
+  __FILE__, __LINE__);
     exit();
   }
 
