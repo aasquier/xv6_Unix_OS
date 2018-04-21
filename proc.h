@@ -73,9 +73,13 @@ struct proc {
 
   #ifdef CS333_P2
   uint gid;                     // User and
-  uint uid;                    //     Group IDs
+  uint uid;                     //     Group IDs
   uint cpu_ticks_total;         // Timer variables to measure how long a process
-  uint cpu_ticks_in;           //     has been actively used for
+  uint cpu_ticks_in;            //     has been actively used for
+  #endif
+
+  #ifdef CS333_P3P4
+  struct proc *next;            // Next pointer for lists
   #endif
 };
 

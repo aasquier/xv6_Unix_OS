@@ -10,9 +10,29 @@
 #include "uproc.h"
 #endif
 
+#ifdef CS333_P3P4
+struct StateLists {
+  struct proc* ready;
+  struct proc* readyTail;
+  struct proc* free;
+  struct proc* freeTail;
+  struct proc* sleep;
+  struct proc* sleepTail;
+  struct proc* zombie;
+  struct proc* zombieTail;
+  struct proc* running;
+  struct proc* runningTail;
+  struct proc* embryo;
+  struct proc* embryoTail;
+};
+#endif
+
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
+  #ifdef CS333_P3P4
+  struct StateLists pLists;
+  #endif
 } ptable;
 
 static struct proc *initproc;
@@ -121,10 +141,10 @@ getprocs(uint max, struct uproc* utable)
         case UNUSED:   safestrcpy(utable[i].state, "unused", 7);   break;
         case EMBRYO:   safestrcpy(utable[i].state, "embryo", 7);   break;
         case SLEEPING: safestrcpy(utable[i].state, "sleep", 9);    break;
-        case RUNNABLE: safestrcpy(utable[i].state, "runble", 9);    break;
+        case RUNNABLE: safestrcpy(utable[i].state, "runble", 9);   break;
         case RUNNING:  safestrcpy(utable[i].state, "run", 8);      break;
         case ZOMBIE:   safestrcpy(utable[i].state, "zombie", 6);   break;
-        default:                                                    break;
+        default:                                                   break;
       }
 
       i++;
@@ -147,6 +167,10 @@ userinit(void)
 {
   struct proc *p;
   extern char _binary_initcode_start[], _binary_initcode_size[];
+
+  #ifdef CS333_P3P4
+  initFreeList();
+  #endif
 
   p = allocproc();
   initproc = p;
@@ -172,6 +196,14 @@ userinit(void)
   #endif
 
   p->state = RUNNABLE;
+
+  #ifdef CS333_P3P4
+  initProcessLists();
+
+  ptable.pLists.ready     = p;
+  ptable.pLists.readyTail = p;          // TODO Needed??
+  p->next                 = 0;
+  #endif
 }
 
 // Grow current process's memory by n bytes.
@@ -402,12 +434,50 @@ scheduler(void)
     }
   }
 }
-
 #else
 void
 scheduler(void)
 {
+  struct proc *p;
+  int idle;  // for checking if processor is idle
 
+  for(;;){
+    // Enable interrupts on this processor.
+    sti();
+
+    idle = 1;  // assume idle unless we schedule a process
+    // Loop over process table looking for process to run.
+    acquire(&ptable.lock);
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->state != RUNNABLE)
+        continue;
+
+      // Switch to chosen process.  It is the process's job
+      // to release ptable.lock and then reacquire it
+      // before jumping back to us.
+      idle = 0;  // not idle this timeslice
+      proc = p;
+      switchuvm(p);
+      p->state = RUNNING;
+
+      #ifdef CS333_P2
+      p->cpu_ticks_in = ticks;
+      #endif
+
+      swtch(&cpu->scheduler, proc->context);
+      switchkvm();
+
+      // Process is done running for now.
+      // It should have changed its p->state before coming back.
+      proc = 0;
+    }
+    release(&ptable.lock);
+    // if idle, wait for next interrupt
+    if (idle) {
+      sti();
+      hlt();
+    }
+  }
 }
 #endif
 
