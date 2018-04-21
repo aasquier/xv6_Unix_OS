@@ -49,6 +49,22 @@ static void initProcessLists(void);
 static void initFreeList(void);
 static int stateListAdd(struct proc** head, struct proc** tail, struct proc* p);
 static int stateListRemove(struct proc** head, struct proc** tail, struct proc* p);
+static void assertState(struct proc* p, enum procstate state);
+static void changeState(struct proc* p, enum procstate state);
+
+static void
+assertState(struct proc* p, enum procstate state)
+{
+  if(p->state != state) {
+    panic("Error: A process has been placed into the wrong list. (assertState(): Line 59)");
+  }
+}
+
+static void
+changeState(struct proc* p, enum procstate state)
+{
+  p->state = state;
+}
 #endif
 
 void
@@ -169,7 +185,9 @@ userinit(void)
   extern char _binary_initcode_start[], _binary_initcode_size[];
 
   #ifdef CS333_P3P4
+  acquire(&ptable.lock);
   initFreeList();
+  release(&ptable.lock);
   #endif
 
   p = allocproc();
@@ -203,6 +221,8 @@ userinit(void)
   ptable.pLists.ready     = p;
   ptable.pLists.readyTail = p;          // TODO Needed??
   p->next                 = 0;
+
+  //release(&ptable.lock);
   #endif
 }
 
@@ -434,7 +454,8 @@ scheduler(void)
     }
   }
 }
-#else
+
+#else                   // TODO TODO TODO
 void
 scheduler(void)
 {
@@ -447,10 +468,12 @@ scheduler(void)
 
     idle = 1;  // assume idle unless we schedule a process
     // Loop over process table looking for process to run.
+
+    int rc = 0;
     acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
-        continue;
+    for(p = ptable.pLists.ready; p != 0; p = p->next){
+
+      assertState(p, RUNNABLE);
 
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
@@ -458,7 +481,15 @@ scheduler(void)
       idle = 0;  // not idle this timeslice
       proc = p;
       switchuvm(p);
-      p->state = RUNNING;
+
+      rc = stateListRemove(&ptable.pLists.ready, &ptable.pLists.readyTail, p);
+      if(rc == -1)
+        panic("Error: Process to be removed from READY list does not exist. (proc.c: scheduler(): Line 471)");               // Traversal of the ready list failed to find match, or ready list empty
+
+      rc = stateListAdd(&ptable.pLists.running, &ptable.pLists.runningTail, p);
+      if(rc == -1)
+        panic("Error: Process failed to be added to the RUNNING list correctly. (proc.c: scheduler(): Line 475)");               // Traversal of the ready list failed to find match, or ready list empty
+      changeState(p, RUNNING);
 
       #ifdef CS333_P2
       p->cpu_ticks_in = ticks;
@@ -472,6 +503,7 @@ scheduler(void)
       proc = 0;
     }
     release(&ptable.lock);
+
     // if idle, wait for next interrupt
     if (idle) {
       sti();
