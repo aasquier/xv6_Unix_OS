@@ -51,20 +51,6 @@ static int stateListAdd(struct proc** head, struct proc** tail, struct proc* p);
 static int stateListRemove(struct proc** head, struct proc** tail, struct proc* p);
 static void assertState(struct proc* p, enum procstate state);
 static void changeState(struct proc* p, enum procstate state);
-
-static void
-assertState(struct proc* p, enum procstate state)
-{
-  if(p->state != state) {
-    panic("Error: A process has been placed into the wrong list. (assertState(): Line 59)");
-  }
-}
-
-static void
-changeState(struct proc* p, enum procstate state)
-{
-  p->state = state;
-}
 #endif
 
 void
@@ -85,20 +71,39 @@ allocproc(void)
   char *sp;
 
   acquire(&ptable.lock);
+  #ifndef CS333_P3P4
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     if(p->state == UNUSED)
       goto found;
+  #else
+  int rc;
+  for(p = ptable.pLists.free; p != 0; p = p->next){
+    assertState(p, UNUSED);
+    rc = stateListRemove(&ptable.pLists.free, &ptable.pLists.freeTail, p);
+    if(rc == -1)
+      panic("Error: Process to be removed from FREE list does not exist. (proc.c: allocproc(): Line 84)");               // Traversal of the ready list failed to find match, or ready list empty
+    goto found;
+  }
+  #endif
   release(&ptable.lock);
   return 0;
 
 found:
+  #ifndef CS333_P3P4
   p->state = EMBRYO;
+  #else
+  changeState(p, EMBRYO);
+  rc = stateListAdd(&ptable.pLists.embryo, &ptable.pLists.embryoTail, p);
+  if(rc == -1)
+    panic("Error: Process failed to be added to the EMBRYO list correctly. (proc.c: allocproc(): Line 97)");               // Traversal of the ready list failed to find match, or ready list empty
+  #endif
+
   p->pid = nextpid++;
   release(&ptable.lock);
 
   // Allocate kernel stack.
   if((p->kstack = kalloc()) == 0){
-    p->state = UNUSED;
+    p->state = UNUSED;                                // TODO TODO   Do we need to handle this ??
     return 0;
   }
   sp = p->kstack + KSTACKSIZE;
@@ -128,6 +133,7 @@ found:
 
   return p;
 }
+
 #ifdef CS333_P2
 // Function to copy pertinent info to a user version of the ptable (utable)
 int
@@ -185,6 +191,8 @@ userinit(void)
   extern char _binary_initcode_start[], _binary_initcode_size[];
 
   #ifdef CS333_P3P4
+  int rc;
+
   acquire(&ptable.lock);
   initFreeList();
   release(&ptable.lock);
@@ -213,16 +221,28 @@ userinit(void)
   p->gid = INIT_GID;
   #endif
 
+  #ifndef CS333_P3P4
   p->state = RUNNABLE;
+  #else
+  acquire(&ptable.lock);
 
-  #ifdef CS333_P3P4
+  rc = stateListRemove(&ptable.pLists.embryo, &ptable.pLists.embryoTail, p);
+  if(rc == -1)
+    panic("Error: Process to be removed from EMBRYO list does not exist. (proc.c: userinit(): Line 209)");               // Traversal of the ready list failed to find match, or ready list empty
+
+  assertState(p, EMBRYO);
+
+  rc = stateListAdd(&ptable.pLists.ready, &ptable.pLists.readyTail, p);
+  if(rc == -1)
+    panic("Error: Process failed to be added to the READY list correctly. (proc.c: userinit(): Line 213)");               // Traversal of the ready list failed to find match, or ready list empty
+
+  changeState(p, RUNNABLE);
+
   initProcessLists();
-
   ptable.pLists.ready     = p;
-  ptable.pLists.readyTail = p;          // TODO Needed??
+  ptable.pLists.readyTail = p;
   p->next                 = 0;
-
-  //release(&ptable.lock);
+  release(&ptable.lock);
   #endif
 }
 
@@ -254,6 +274,9 @@ fork(void)
 {
   int i, pid;
   struct proc *np;
+  #ifdef CS333_P3P4
+  int rc;
+  #endif
 
   // Allocate process.
   if((np = allocproc()) == 0)
@@ -289,7 +312,21 @@ fork(void)
 
   // lock to force the compiler to emit the np->state write last.
   acquire(&ptable.lock);
+  #ifndef CS333_P3P4
   np->state = RUNNABLE;
+  #else
+  rc = stateListRemove(&ptable.pLists.embryo, &ptable.pLists.embryoTail, np);
+  if(rc == -1)
+    panic("Error: Process to be removed from EMBRYO list does not exist. (proc.c: userinit(): Line 209)");               // Traversal of the ready list failed to find match, or ready list empty
+
+  assertState(np, EMBRYO);
+
+  rc = stateListAdd(&ptable.pLists.ready, &ptable.pLists.readyTail, np);
+  if(rc == -1)
+    panic("Error: Process failed to be added to the READY list correctly. (proc.c: userinit(): Line 213)");               // Traversal of the ready list failed to find match, or ready list empty
+
+  changeState(np, RUNNABLE);
+  #endif
   release(&ptable.lock);
 
   return pid;
@@ -344,7 +381,43 @@ exit(void)
 void
 exit(void)
 {
+  struct proc *p;
+  int fd;
 
+  if(proc == initproc)
+    panic("init exiting");
+
+  // Close all open files.
+  for(fd = 0; fd < NOFILE; fd++){
+    if(proc->ofile[fd]){
+      fileclose(proc->ofile[fd]);
+      proc->ofile[fd] = 0;
+    }
+  }
+
+  begin_op();
+  iput(proc->cwd);
+  end_op();
+  proc->cwd = 0;
+
+  acquire(&ptable.lock);
+
+  // Parent might be sleeping in wait().
+  wakeup1(proc->parent);
+
+  // Pass abandoned children to init.
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->parent == proc){
+      p->parent = initproc;
+      if(p->state == ZOMBIE)
+        wakeup1(initproc);
+    }
+  }
+
+  // Jump into the scheduler, never to return.
+  proc->state = ZOMBIE;
+  sched();
+  panic("zombie exit");
 }
 #endif
 
@@ -395,8 +468,42 @@ wait(void)
 int
 wait(void)
 {
+  struct proc *p;
+  int havekids, pid;
 
-  return 0;  // placeholder
+  acquire(&ptable.lock);
+  for(;;){
+    // Scan through table looking for zombie children.
+    havekids = 0;
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->parent != proc)
+        continue;
+      havekids = 1;
+      if(p->state == ZOMBIE){
+        // Found one.
+        pid = p->pid;
+        kfree(p->kstack);
+        p->kstack = 0;
+        freevm(p->pgdir);
+        p->state = UNUSED;
+        p->pid = 0;
+        p->parent = 0;
+        p->name[0] = 0;
+        p->killed = 0;
+        release(&ptable.lock);
+        return pid;
+      }
+    }
+
+    // No point waiting if we don't have any children.
+    if(!havekids || proc->killed){
+      release(&ptable.lock);
+      return -1;
+    }
+
+    // Wait for children to exit.  (See wakeup1 call in proc_exit.)
+    sleep(proc, &ptable.lock);  //DOC: wait-sleep
+  }
 }
 #endif
 
@@ -472,7 +579,6 @@ scheduler(void)
     int rc = 0;
     acquire(&ptable.lock);
     for(p = ptable.pLists.ready; p != 0; p = p->next){
-
       assertState(p, RUNNABLE);
 
       // Switch to chosen process.  It is the process's job
@@ -484,11 +590,13 @@ scheduler(void)
 
       rc = stateListRemove(&ptable.pLists.ready, &ptable.pLists.readyTail, p);
       if(rc == -1)
-        panic("Error: Process to be removed from READY list does not exist. (proc.c: scheduler(): Line 471)");               // Traversal of the ready list failed to find match, or ready list empty
+        panic("Error: Process to be removed from READY list does not exist. (proc.c: scheduler(): Line 473)");               // Traversal of the ready list failed to find match, or ready list empty
 
+      assertState(p, RUNNABLE);
       rc = stateListAdd(&ptable.pLists.running, &ptable.pLists.runningTail, p);
+
       if(rc == -1)
-        panic("Error: Process failed to be added to the RUNNING list correctly. (proc.c: scheduler(): Line 475)");               // Traversal of the ready list failed to find match, or ready list empty
+        panic("Error: Process failed to be added to the RUNNING list correctly. (proc.c: scheduler(): Line 477)");               // Traversal of the ready list failed to find match, or ready list empty
       changeState(p, RUNNING);
 
       #ifdef CS333_P2
@@ -622,7 +730,25 @@ wakeup1(void *chan)
 static void
 wakeup1(void *chan)
 {
+  struct proc *p;
+  int rc;
 
+  for(p = ptable.pLists.sleep; p != 0; p = p->next){
+    if(p->chan == chan){
+      acquire(&ptable.lock);
+      rc = stateListRemove(&ptable.pLists.sleep, &ptable.pLists.sleepTail, p);
+      if(rc == -1)
+        panic("Error: Process to be removed from SLEEPING list does not exist. (proc.c: wakeup1(): Line 743)");               // Traversal of the ready list failed to find match, or ready list empty
+
+      assertState(p, SLEEPING);
+      changeState(p, RUNNABLE);
+
+      rc = stateListAdd(&ptable.pLists.ready, &ptable.pLists.readyTail, p);
+      if(rc == -1)
+        panic("Error: Process failed to be added to the READY list correctly. (proc.c: wakeup1(): Line 748)");               // Traversal of the ready list failed to find match, or ready list empty
+      release(&ptable.lock);
+    }
+  }
 }
 #endif
 
@@ -662,8 +788,21 @@ kill(int pid)
 int
 kill(int pid)
 {
+  struct proc *p;
 
-  return 0;  // placeholder
+  acquire(&ptable.lock);
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->pid == pid){
+      p->killed = 1;
+      // Wake process from sleep if necessary.
+      if(p->state == SLEEPING)
+        p->state = RUNNABLE;
+      release(&ptable.lock);
+      return 0;
+    }
+  }
+  release(&ptable.lock);
+  return -1;
 }
 #endif
 
@@ -783,6 +922,22 @@ procdump(void)
 }
 
 #ifdef CS333_P3P4
+static void
+assertState(struct proc* p, enum procstate state)
+{
+  char* pstate;
+  if(p->state != state) {
+    pstate = states[p->state];
+    panic(pstate);
+  }
+}
+
+static void
+changeState(struct proc* p, enum procstate state)
+{
+  p->state = state;
+}
+
 static int
 stateListAdd(struct proc** head, struct proc** tail, struct proc* p)
 {
