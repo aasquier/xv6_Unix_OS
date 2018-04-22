@@ -95,7 +95,7 @@ found:
   changeState(p, EMBRYO);
   rc = stateListAdd(&ptable.pLists.embryo, &ptable.pLists.embryoTail, p);
   if(rc == -1)
-    panic("Error: Process failed to be added to the EMBRYO list correctly. (proc.c: allocproc(): Line 97)");               // Traversal of the ready list failed to find match, or ready list empty
+    panic("Error: Process failed to be added to the EMBRYO list correctly. (proc.c: allocproc(): Line 98)");               // Traversal of the ready list failed to find match, or ready list empty
   #endif
 
   p->pid = nextpid++;
@@ -152,7 +152,7 @@ getprocs(uint max, struct uproc* utable)
       utable[i].elapsed_ticks = ticks - p->start_ticks;
       utable[i].CPU_total_ticks = p->cpu_ticks_total;
       utable[i].size = p->sz;
-      safestrcpy(utable[i].name, p->name, sizeof(p->name));
+      safestrcpy(utable[i].name, p->name, sizeof(char) * STRMAX);
 
       if(p->parent)
         utable[i].ppid = p->parent->pid;
@@ -160,13 +160,13 @@ getprocs(uint max, struct uproc* utable)
         utable[i].ppid = p->pid;
 
       switch(p->state){
-        case UNUSED:   safestrcpy(utable[i].state, "unused", 7);   break;
-        case EMBRYO:   safestrcpy(utable[i].state, "embryo", 7);   break;
-        case SLEEPING: safestrcpy(utable[i].state, "sleep", 9);    break;
-        case RUNNABLE: safestrcpy(utable[i].state, "runble", 9);   break;
-        case RUNNING:  safestrcpy(utable[i].state, "run", 8);      break;
-        case ZOMBIE:   safestrcpy(utable[i].state, "zombie", 6);   break;
-        default:                                                   break;
+        case UNUSED:   safestrcpy(utable[i].state, "unused", STRMAX);   break;
+        case EMBRYO:   safestrcpy(utable[i].state, "embryo", STRMAX);   break;
+        case SLEEPING: safestrcpy(utable[i].state, "sleep", STRMAX);    break;
+        case RUNNABLE: safestrcpy(utable[i].state, "runble", STRMAX);   break;
+        case RUNNING:  safestrcpy(utable[i].state, "run", STRMAX);      break;
+        case ZOMBIE:   safestrcpy(utable[i].state, "zombie", STRMAX);   break;
+        default:                                                        break;
       }
 
       i++;
@@ -231,11 +231,6 @@ userinit(void)
     panic("Error: Process to be removed from EMBRYO list does not exist. (proc.c: userinit(): Line 209)");               // Traversal of the ready list failed to find match, or ready list empty
 
   assertState(p, EMBRYO);
-
-  rc = stateListAdd(&ptable.pLists.ready, &ptable.pLists.readyTail, p);
-  if(rc == -1)
-    panic("Error: Process failed to be added to the READY list correctly. (proc.c: userinit(): Line 213)");               // Traversal of the ready list failed to find match, or ready list empty
-
   changeState(p, RUNNABLE);
 
   initProcessLists();
@@ -320,12 +315,12 @@ fork(void)
     panic("Error: Process to be removed from EMBRYO list does not exist. (proc.c: userinit(): Line 209)");               // Traversal of the ready list failed to find match, or ready list empty
 
   assertState(np, EMBRYO);
+  changeState(np, RUNNABLE);
 
   rc = stateListAdd(&ptable.pLists.ready, &ptable.pLists.readyTail, np);
   if(rc == -1)
     panic("Error: Process failed to be added to the READY list correctly. (proc.c: userinit(): Line 213)");               // Traversal of the ready list failed to find match, or ready list empty
 
-  changeState(np, RUNNABLE);
   #endif
   release(&ptable.lock);
 
@@ -590,14 +585,15 @@ scheduler(void)
 
       rc = stateListRemove(&ptable.pLists.ready, &ptable.pLists.readyTail, p);
       if(rc == -1)
-        panic("Error: Process to be removed from READY list does not exist. (proc.c: scheduler(): Line 473)");               // Traversal of the ready list failed to find match, or ready list empty
+        panic("Error: Process to be removed from READY list does not exist. (proc.c: scheduler(): Line 593)");               // Traversal of the ready list failed to find match, or ready list empty
 
       assertState(p, RUNNABLE);
+
+      changeState(p, RUNNING);
       rc = stateListAdd(&ptable.pLists.running, &ptable.pLists.runningTail, p);
 
       if(rc == -1)
-        panic("Error: Process failed to be added to the RUNNING list correctly. (proc.c: scheduler(): Line 477)");               // Traversal of the ready list failed to find match, or ready list empty
-      changeState(p, RUNNING);
+        panic("Error: Process failed to be added to the RUNNING list correctly. (proc.c: scheduler(): Line 599");               // Traversal of the ready list failed to find match, or ready list empty
 
       #ifdef CS333_P2
       p->cpu_ticks_in = ticks;
@@ -651,7 +647,25 @@ void
 yield(void)
 {
   acquire(&ptable.lock);  //DOC: yieldlock
+  #ifndef CS333_P3P4
   proc->state = RUNNABLE;
+  #else
+  struct proc* p;
+  int rc;
+
+  for(p = ptable.pLists.running; p != 0; p = p->next){
+    if(p == proc){
+      rc = stateListRemove(&ptable.pLists.running, &ptable.pLists.runningTail, p);
+      if(rc == -1)
+        panic("Error: Failed to remove process from the RUNNING list. (proc.c: yield() line 660");
+      assertState(p, RUNNING);
+      changeState(p, RUNNABLE);
+      rc = stateListAdd(&ptable.pLists.ready, &ptable.pLists.readyTail, p);
+      if(rc == -1)
+        panic("Error: Failed to add process to the READY list. (proc.c: yield() line 665");
+    }
+  }
+  #endif
   sched();
   release(&ptable.lock);
 }

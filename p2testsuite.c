@@ -1,3 +1,4 @@
+// Morrissey's version -- not released to students.
 /*
   A basic test suite for Portland State University CS333 Operating Systems Project 2.
   Created by Joe Coleman
@@ -9,8 +10,8 @@
 // comment out tests for features the student doesn't have implemented
 // Note the CPUTIME_TEST requires GETPROCS_TEST
 #define UIDGIDPPID_TEST
-//#define CPUTIME_TEST
-//#define GETPROCS_TEST
+#define CPUTIME_TEST
+#define GETPROCS_TEST
 #define TIME_TEST
 
 
@@ -52,7 +53,7 @@ testgid(uint new_val, uint expected_get_val, int expected_set_ret){
   }
   post_gid = getgid();
   if(post_gid != expected_get_val){
-    printf(2, "FAILED: UID was %d. After setgid(%d), getgid() returned %d, expected %d\n", 
+    printf(2, "FAILED: UID was %d. After setgid(%d), getgid() returned %d, expected %d\n",
           pre_gid, new_val, post_gid, expected_get_val);
     success = -1;
   }
@@ -73,7 +74,7 @@ testuid(uint new_val, uint expected_get_val, int expected_set_ret){
   }
   post_uid = getuid();
   if(post_uid != expected_get_val){
-    printf(2, "FAILED: UID was %d. After setuid(%d), getuid() returned %d, expected %d\n", 
+    printf(2, "FAILED: UID was %d. After setuid(%d), getuid() returned %d, expected %d\n",
           pre_uid, new_val, post_uid, expected_get_val);
     success = -1;
   }
@@ -102,7 +103,7 @@ testuidgid(void)
     success = -1;
   if (testuid(-1, 32767, -1))
     success = -1;
- 
+
   gid = getgid();
   if(gid < 0 || gid > 32767){
     printf(1, "FAILED: Default GID %d, out of range\n", gid);
@@ -118,7 +119,7 @@ testuidgid(void)
     success = -1;
   if (testgid(32768, 32767, -1))
     success = -1;
- 
+
   if (success == 0)
     printf(1, "** All tests passed! **\n");
 }
@@ -147,7 +148,7 @@ testuidgidinheritance(void){
       printf(2, "FAILED: Parent GID is 12345, child GID is %d\n", gid);
     }
     else
-      printf(1, "** Test Passed! **\n"); 
+      printf(1, "** Test Passed! **\n");
     exit();
   }
   else {
@@ -164,7 +165,7 @@ static int
 getcputime(char * name, struct uproc * table){
   struct uproc *p = 0;
   int size;
-  
+
   size = getprocs(64, table);
   for(int i = 0; i < size; ++i){
     if(strcmp(table[i].name, name) == 0){
@@ -189,6 +190,10 @@ testcputime(char * name){
 
   printf(1, "\n----------\nRunning CPU Time Test\n----------\n");
   table = malloc(sizeof(struct uproc) * 64);
+  if (!table) {
+    printf(2, "Error: malloc() call failed. %s at line %d\n", __FUNCTION__, __LINE__);
+    exit();
+  }
   printf(1, "This will take a couple seconds\n");
 
   // Loop for a long time to see if the elapsed CPU_total_ticks is in a reasonable range
@@ -212,7 +217,7 @@ testcputime(char * name){
   }
   if((time2 - time1) > 400){
     printf(2, "ABNORMALLY HIGH: T2 - T1 = %d milliseconds.  Run test again\n", (time2 - time1));
-    success = -1; 
+    success = -1;
   }
   printf(1, "T2 - T1 = %d milliseconds\n", (time2 - time1));
   free(table);
@@ -225,30 +230,24 @@ testcputime(char * name){
 
 #ifdef GETPROCS_TEST
 // Fork to 64 process and then make sure we get all when passing table array
-// of sizes 1, 16, 64, 72
+// of sizes 1, 16, 64, 72. NOTE: caller does all forks.
 static int
-testprocarray(int max, int expected_ret, char * name){
+testprocarray(int max, int expected_ret){
   struct uproc * table;
-  int ret, success, num_init, num_sh, num_this;
-  success = num_init = num_sh = num_this = 0;
-  
-  table = malloc(sizeof(struct uproc) * max);
-  ret = getprocs(max, table);
-  for (int i = 0; i < ret; ++i){
-    if(strcmp(table[i].name, "init") == 0)
-      ++num_init;
-    else if(strcmp(table[i].name, "sh") == 0)
-      ++num_sh;
-    else if(strcmp(table[i].name, name) == 0)
-      ++num_this;
+  int ret, success = 0;
+
+  table = malloc(sizeof(struct uproc) * max);  // bad code, assumes success
+  if (!table) {
+    printf(2, "Error: malloc() call failed. %s at line %d\n", __FUNCTION__, __LINE__);
+    exit();
   }
+  ret = getprocs(max, table);
   if (ret != expected_ret){
     printf(2, "FAILED: getprocs(%d) returned %d, expected %d\n", max, ret, expected_ret);
     success = -1;
   }
   else{
-    printf(1, "getprocs(%d), found %d processes with names(qty), \"init\"(%d), \"sh\"(%d), \"%s\"(%d)\n",
-            max, ret, num_init, num_sh, name, num_this);
+    printf(2, "getprocs() was asked for %d processes and returned %d. SUCCESS\n", max, expected_ret);
   }
   free(table);
   return success;
@@ -260,6 +259,10 @@ testinvalidarray(void){
   int ret;
 
   table = malloc(sizeof(struct uproc));
+  if (!table) {
+    printf(2, "Error: malloc() call failed. %s at line %d\n", __FUNCTION__, __LINE__);
+    exit();
+  }
   ret = getprocs(1024, table);
   free(table);
   if(ret >= 0){
@@ -270,10 +273,11 @@ testinvalidarray(void){
 }
 
 static void
-testgetprocs(char * name){
+testgetprocs(){
   int ret, success;
 
   printf(1, "\n----------\nRunning GetProcs Test\n----------\n");
+  printf(1, "Filling the proc[] array with dummy processes\n");
   // Fork until no space left in ptable
   ret = fork();
   if (ret == 0){
@@ -283,20 +287,14 @@ testgetprocs(char * name){
       exit();
     }
     // Only return left is -1, which is no space left in ptable
-    success = 0;
-    if(testinvalidarray())
-      success = -1;
-    if(testprocarray(1, 1, name))
-      success = -1;
-    if(testprocarray(16, 16, name))
-      success = -1;
-    if(testprocarray(64, 64, name))
-      success = -1;
-    if(testprocarray(72, 64, name))
-      success = -1;
+    success  = testinvalidarray();
+    success |= testprocarray( 1,  1);
+    success |= testprocarray(16, 16);
+    success |= testprocarray(64, 64);
+    success |= testprocarray(72, 64);
     if (success == 0)
       printf(1, "** All Tests Passed **\n");
-    exit(); 
+    exit();
   }
   wait();
 }
@@ -307,7 +305,7 @@ testgetprocs(char * name){
 void
 testtimewitharg(char **arg){
   int ret;
- 
+
   ret = fork();
   if (ret == 0){
     exec(arg[0], arg);
@@ -348,7 +346,7 @@ testtime(void){
   strcpy(arg4[2], "echo");
   arg4[3] = malloc(sizeof(char) * 6);
   strcpy(arg4[3], "\"abc\"");
- 
+
   printf(1, "\n----------\nRunning Time Test\n----------\n");
   printf(1, "You will need to verify these tests passed\n");
 
@@ -384,7 +382,7 @@ main(int argc, char *argv[])
   testppid();
   #endif
   #ifdef GETPROCS_TEST
-  testgetprocs(argv[0]);
+  testgetprocs();  // no need to pass argv[0]
   #endif
   #ifdef TIME_TEST
   testtime();
