@@ -120,6 +120,10 @@ int             wait(void);
 void            wakeup(void*);
 void            yield(void);
 int             getprocs(uint max, struct uproc* utable);
+void            cready(void);
+void            cfree(void);
+void            csleep(void);
+void            czombie(void);
 
 // swtch.S
 void            swtch(struct context**, struct context*);
