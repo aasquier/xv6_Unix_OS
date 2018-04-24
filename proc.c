@@ -77,12 +77,15 @@ allocproc(void)
       goto found;
   #else
   int rc;
-  for(p = ptable.pLists.free; p != 0; p = p->next){
-    assertState(p, UNUSED);
-    rc = stateListRemove(&ptable.pLists.free, &ptable.pLists.freeTail, p);
-    if(rc == -1)
-      panic("Error: Process to be removed from FREE list does not exist. (proc.c: allocproc(): Line 84)");               // Traversal of the ready list failed to find match, or ready list empty
-    goto found;
+  //for(p = ptable.pLists.free; p != 0; p = p->next){
+    p = ptable.pLists.free;
+    if(p){
+      assertState(p, UNUSED);
+      rc = stateListRemove(&ptable.pLists.free, &ptable.pLists.freeTail, p);
+      if(rc == -1)
+        panic("Error: Process to be removed from FREE list does not exist. (proc.c: allocproc(): Line 84)");               // Traversal of the ready list failed to find match, or ready list empty
+      cprintf("allocproc");
+      goto found;
   }
   #endif
   release(&ptable.lock);
@@ -103,7 +106,23 @@ found:
 
   // Allocate kernel stack.
   if((p->kstack = kalloc()) == 0){
+    #ifndef CS333_P3P4
     p->state = UNUSED;                                // TODO TODO   Do we need to handle this ??
+    #else
+    int rc;
+    acquire(&ptable.lock);
+    rc = stateListRemove(&ptable.pLists.embryo, &ptable.pLists.embryoTail, p);
+    if(rc == -1)
+      panic("Error: Process to be removed from EMBRYO list does not exist. (proc.c: allocproc(): Line 209)");               // Traversal of the ready list failed to find match, or ready list empty
+
+    assertState(p, EMBRYO);
+    changeState(p, UNUSED);
+
+    rc = stateListAdd(&ptable.pLists.free, &ptable.pLists.freeTail, p);
+    if(rc == -1)
+      panic("Error: Process failed to be added to the FREE list correctly. (proc.c: allocproc(): Line 213)");               // Traversal of the ready list failed to find match, or ready list empty
+    release(&ptable.lock);
+    #endif
     return 0;
   }
   sp = p->kstack + KSTACKSIZE;
@@ -194,6 +213,7 @@ userinit(void)
   int rc;
 
   acquire(&ptable.lock);
+  initProcessLists();               //TODO  Is this in the right place??
   initFreeList();
   release(&ptable.lock);
   #endif
@@ -224,8 +244,7 @@ userinit(void)
   #ifndef CS333_P3P4
   p->state = RUNNABLE;
   #else
-  acquire(&ptable.lock);
-
+  //acquire(&ptable.lock);
   rc = stateListRemove(&ptable.pLists.embryo, &ptable.pLists.embryoTail, p);
   if(rc == -1)
     panic("Error: Process to be removed from EMBRYO list does not exist. (proc.c: userinit(): Line 209)");               // Traversal of the ready list failed to find match, or ready list empty
@@ -233,11 +252,10 @@ userinit(void)
   assertState(p, EMBRYO);
   changeState(p, RUNNABLE);
 
-  initProcessLists();
   ptable.pLists.ready     = p;
   ptable.pLists.readyTail = p;
   p->next                 = 0;
-  release(&ptable.lock);
+  //release(&ptable.lock);
   #endif
 }
 
@@ -281,7 +299,23 @@ fork(void)
   if((np->pgdir = copyuvm(proc->pgdir, proc->sz)) == 0){
     kfree(np->kstack);
     np->kstack = 0;
+    #ifndef CS333_P3P4
     np->state = UNUSED;
+    #else
+    acquire(&ptable.lock);
+    rc = stateListRemove(&ptable.pLists.embryo, &ptable.pLists.embryoTail, np);
+    if(rc == -1)
+      panic("Error: Process to be removed from EMBRYO list does not exist. (proc.c: userinit(): Line 209)");               // Traversal of the ready list failed to find match, or ready list empty
+
+    assertState(np, EMBRYO);
+    changeState(np, UNUSED);
+
+    rc = stateListAdd(&ptable.pLists.free, &ptable.pLists.freeTail, np);
+    if(rc == -1)
+      panic("Error: Process failed to be added to the READY list correctly. (proc.c: userinit(): Line 213)");               // Traversal of the ready list failed to find match, or ready list empty
+
+    release(&ptable.lock);
+    #endif
     return -1;
   }
   np->sz = proc->sz;
@@ -312,14 +346,14 @@ fork(void)
   #else
   rc = stateListRemove(&ptable.pLists.embryo, &ptable.pLists.embryoTail, np);
   if(rc == -1)
-    panic("Error: Process to be removed from EMBRYO list does not exist. (proc.c: userinit(): Line 209)");               // Traversal of the ready list failed to find match, or ready list empty
+    panic("Error: Process to be removed from EMBRYO list does not exist. (proc.c: fork(): Line 209)");               // Traversal of the ready list failed to find match, or ready list empty
 
   assertState(np, EMBRYO);
   changeState(np, RUNNABLE);
 
   rc = stateListAdd(&ptable.pLists.ready, &ptable.pLists.readyTail, np);
   if(rc == -1)
-    panic("Error: Process failed to be added to the READY list correctly. (proc.c: userinit(): Line 213)");               // Traversal of the ready list failed to find match, or ready list empty
+    panic("Error: Process failed to be added to the READY list correctly. (proc.c: fork(): Line 213)");               // Traversal of the ready list failed to find match, or ready list empty
 
   #endif
   release(&ptable.lock);
@@ -359,7 +393,7 @@ exit(void)
   wakeup1(proc->parent);
 
   // Pass abandoned children to init.
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){          // TODO  What to do here?
     if(p->parent == proc){
       p->parent = initproc;
       if(p->state == ZOMBIE)
@@ -378,6 +412,7 @@ exit(void)
 {
   struct proc *p;
   int fd;
+  int rc;
 
   if(proc == initproc)
     panic("init exiting");
@@ -401,16 +436,26 @@ exit(void)
   wakeup1(proc->parent);
 
   // Pass abandoned children to init.
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+  for(p = ptable.pLists.zombie; p != 0; p = p->next){    //TODO Error here??
     if(p->parent == proc){
       p->parent = initproc;
-      if(p->state == ZOMBIE)
-        wakeup1(initproc);
+      wakeup1(initproc);
     }
   }
 
   // Jump into the scheduler, never to return.
-  proc->state = ZOMBIE;
+  acquire(&ptable.lock);
+  rc = stateListRemove(&ptable.pLists.running, &ptable.pLists.runningTail, proc);
+  if(rc == -1)
+    panic("Error: Process to be removed from the RUNNING list does not exist. (proc.c: exit(): line 380)");
+  assertState(proc, RUNNING);
+
+  changeState(proc, ZOMBIE);
+  rc = stateListAdd(&ptable.pLists.zombie, &ptable.pLists.zombieTail, proc);
+  if(rc == -1)
+    panic("Error: Process failed to be added to the ZOMBIE list correctly. (proc.c: exit(): Line 213)");               // Traversal of the ready list failed to find match, or ready list empty
+  release(&ptable.lock);
+
   sched();
   panic("zombie exit");
 }
@@ -465,29 +510,43 @@ wait(void)
 {
   struct proc *p;
   int havekids, pid;
+  int rc;
 
   acquire(&ptable.lock);
   for(;;){
     // Scan through table looking for zombie children.
     havekids = 0;
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    for(p = ptable.pLists.zombie; p != 0; p = p->next){
       if(p->parent != proc)
         continue;
       havekids = 1;
-      if(p->state == ZOMBIE){
+    //if(p->state == ZOMBIE){         // TODO Not sure how to handle this if statement
         // Found one.
-        pid = p->pid;
-        kfree(p->kstack);
-        p->kstack = 0;
-        freevm(p->pgdir);
-        p->state = UNUSED;
-        p->pid = 0;
-        p->parent = 0;
-        p->name[0] = 0;
-        p->killed = 0;
-        release(&ptable.lock);
-        return pid;
-      }
+      pid = p->pid;
+      kfree(p->kstack);
+      p->kstack = 0;
+      freevm(p->pgdir);
+
+     // p->state = UNUSED;
+      rc = stateListRemove(&ptable.pLists.zombie, &ptable.pLists.zombieTail, p);
+      if(rc == -1)
+        panic("Error: Process to be removed from the ZOMBIE list does not exist. (proc.c: wait(): line 502)");
+      assertState(p, ZOMBIE);
+
+      changeState(p, UNUSED);
+      rc = stateListAdd(&ptable.pLists.free, &ptable.pLists.freeTail, p);
+      if(rc == -1)
+        panic("Error: Process failed to be added to the FREE list correctly. (proc.c: wait(): Line 508)");               // Traversal of the ready list failed to find match, or ready list empty
+
+
+
+      p->pid = 0;
+      p->parent = 0;
+      p->name[0] = 0;
+      p->killed = 0;
+      release(&ptable.lock);
+      return pid;
+     // }
     }
 
     // No point waiting if we don't have any children.
@@ -698,6 +757,11 @@ forkret(void)
 void
 sleep(void *chan, struct spinlock *lk)
 {
+  #ifdef CS333_P3P4
+  int rc;
+  //struct proc* p;
+  #endif
+
   if(proc == 0)
     panic("sleep");
 
@@ -714,7 +778,25 @@ sleep(void *chan, struct spinlock *lk)
 
   // Go to sleep.
   proc->chan = chan;
+  #ifndef CS333_P3P4
   proc->state = SLEEPING;
+  #else
+  //acquire(&ptable.lock);
+  //for(p = ptable.pLists.running; p != 0; p = p->next){
+    //if(p == proc){
+      rc = stateListRemove(&ptable.pLists.running, &ptable.pLists.runningTail, proc);
+      if(rc == -1)
+        panic("Error: Failed to remove process from the RUNNING list. (proc.c: sleep() line 757");
+      assertState(proc, RUNNING);
+      changeState(proc, SLEEPING);
+      rc = stateListAdd(&ptable.pLists.sleep, &ptable.pLists.sleepTail, proc);
+      if(rc == -1)
+        panic("Error: Failed to add process to the SLEEP list. (proc.c: sleep() line 762");
+    //}
+  //}
+  //release(&ptable.lock);
+  #endif
+
   sched();
 
   // Tidy up.
@@ -749,7 +831,7 @@ wakeup1(void *chan)
 
   for(p = ptable.pLists.sleep; p != 0; p = p->next){
     if(p->chan == chan){
-      acquire(&ptable.lock);
+      //acquire(&ptable.lock);
       rc = stateListRemove(&ptable.pLists.sleep, &ptable.pLists.sleepTail, p);
       if(rc == -1)
         panic("Error: Process to be removed from SLEEPING list does not exist. (proc.c: wakeup1(): Line 743)");               // Traversal of the ready list failed to find match, or ready list empty
@@ -760,7 +842,7 @@ wakeup1(void *chan)
       rc = stateListAdd(&ptable.pLists.ready, &ptable.pLists.readyTail, p);
       if(rc == -1)
         panic("Error: Process failed to be added to the READY list correctly. (proc.c: wakeup1(): Line 748)");               // Traversal of the ready list failed to find match, or ready list empty
-      release(&ptable.lock);
+      //release(&ptable.lock);
     }
   }
 }
@@ -803,14 +885,21 @@ int
 kill(int pid)
 {
   struct proc *p;
+  int rc;
 
   acquire(&ptable.lock);
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+  for(p = ptable.pLists.sleep; p != 0; p = p->next){                // TODO How this is being handled may need altered
     if(p->pid == pid){
       p->killed = 1;
-      // Wake process from sleep if necessary.
-      if(p->state == SLEEPING)
-        p->state = RUNNABLE;
+      rc = stateListRemove(&ptable.pLists.sleep, &ptable.pLists.sleepTail, p);
+      if(rc == -1)
+        panic("Error: Failed to remove process from the SLEEP list. (proc.c: yield() line 660");
+      assertState(p, SLEEPING);
+      changeState(p, RUNNABLE);
+      rc = stateListAdd(&ptable.pLists.ready, &ptable.pLists.readyTail, p);
+      if(rc == -1)
+        panic("Error: Failed to add process to the READY list. (proc.c: yield() line 665");
+
       release(&ptable.lock);
       return 0;
     }
