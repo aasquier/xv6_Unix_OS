@@ -126,7 +126,7 @@ sys_getppid(void)
   if(proc->parent)
     return proc->parent->pid;
   else
-    return 1;
+    return proc->pid;
 }
 
 int
