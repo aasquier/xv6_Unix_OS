@@ -50,12 +50,9 @@ static void initFreeList(void);
 static int  stateListAdd(struct proc** head, struct proc** tail, struct proc* p);
 static int  stateListRemove(struct proc** head, struct proc** tail, struct proc* p);
 
-//
-//static proc* searchAll(void);
-static int   exitSearchAll(struct proc** head, struct proc* pExit);
-//static int   killSearchAll(void);
-static int   waitSearchAll(struct proc** head, int* havekids, struct proc* pWait);
-
+static int  exitSearchAll(struct proc** head, struct proc* pExit);
+static int  killSearchAll(struct proc** head, int pid);
+static int  waitSearchAll(struct proc** head, int* havekids, struct proc* pWait);
 static void changeState(struct proc** headRemove, struct proc** tailRemove, struct proc** headAdd, struct proc** tailAdd, struct proc* p, enum procstate stateRemove, enum procstate stateAdd, char* err);
 static void assertState(struct proc* p, enum procstate state);
 #endif
@@ -385,7 +382,6 @@ fork(void)
 {
   int i, pid;
   struct proc *np;
-  //int rc;
 
   // Allocate process.
   if((np = allocproc()) == 0)
@@ -594,8 +590,6 @@ wait(void)
 int
 wait(void)
 {
-  //struct proc *p;
-  //struct proc *pee;
   int pid;
   int havekids;
 
@@ -631,7 +625,9 @@ wait(void)
   }
 }
 
-static int waitSearchAll(struct proc** head, int* havekids, struct proc* pWait)
+// wait()s searchAll helper
+static int
+waitSearchAll(struct proc** head, int* havekids, struct proc* pWait)
 {
   int pid = -1;
   struct proc* p1;
@@ -979,25 +975,46 @@ kill(int pid)
 }
 #else
 int
-kill(int pid)   // TODO TODO FIX LOOP
+kill(int pid)
 {
-  struct proc *p;
-  struct proc *pee;
+  int rc;
 
   acquire(&ptable.lock);
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+
+  rc = killSearchAll(&ptable.pLists.embryo, pid);
+  if(rc == -1)
+    rc = killSearchAll(&ptable.pLists.ready, pid);
+  if(rc == -1)
+    rc = killSearchAll(&ptable.pLists.free, pid);
+  if(rc == -1)
+    rc = killSearchAll(&ptable.pLists.sleep, pid);
+  if(rc == -1)
+    rc = killSearchAll(&ptable.pLists.running, pid);
+  if(rc == -1)
+    rc = killSearchAll(&ptable.pLists.zombie, pid);
+
+  release(&ptable.lock);
+  return rc;
+}
+
+// kill()s searchAll helper
+static int
+killSearchAll(struct proc** head, int pid)
+{
+  struct proc* p;
+  struct proc* pK;
+
+  for(p = *head; p != 0; p = p->next){
     if(p->pid == pid){
       p->killed = 1;
-      for(pee = ptable.pLists.sleep; pee != 0; pee = pee->next){
-        if(pee == p){
-          changeState(&ptable.pLists.sleep, &ptable.pLists.sleepTail, &ptable.pLists.ready, &ptable.pLists.readyTail, p, SLEEPING, RUNNABLE, "kill()");
+      for(pK = ptable.pLists.sleep; pK != 0; pK = pK->next){
+        if(p == pK){
+          changeState(&ptable.pLists.sleep, &ptable.pLists.sleepTail, &ptable.pLists.ready, &ptable.pLists.readyTail, p, SLEEPING, RUNNABLE, "killSearchAll()");
         }
-        release(&ptable.lock);
         return 0;
       }
     }
   }
-  release(&ptable.lock);
   return -1;
 }
 #endif
