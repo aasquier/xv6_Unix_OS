@@ -47,9 +47,16 @@ static void wakeup1(void *chan);
 #ifdef CS333_P3P4
 static void initProcessLists(void);
 static void initFreeList(void);
+static int  stateListAdd(struct proc** head, struct proc** tail, struct proc* p);
+static int  stateListRemove(struct proc** head, struct proc** tail, struct proc* p);
+
+//
+//static proc* searchAll(void);
+static int   exitSearchAll(struct proc** head, struct proc* pExit);
+//static int   killSearchAll(void);
+//static int   waitSearchAll(void);
+
 static void changeState(struct proc** headRemove, struct proc** tailRemove, struct proc** headAdd, struct proc** tailAdd, struct proc* p, enum procstate stateRemove, enum procstate stateAdd, char* err);
-static int stateListAdd(struct proc** head, struct proc** tail, struct proc* p);
-static int stateListRemove(struct proc** head, struct proc** tail, struct proc* p);
 static void assertState(struct proc* p, enum procstate state);
 #endif
 
@@ -138,10 +145,9 @@ found:
   // Allocate kernel stack.
   if((p->kstack = kalloc()) == 0){
     acquire(&ptable.lock);
-
     changeState(&ptable.pLists.embryo, &ptable.pLists.embryoTail, &ptable.pLists.free, &ptable.pLists.freeTail, p, EMBRYO, UNUSED, "allocproc()");
-
     release(&ptable.lock);
+
     return 0;
   }
   sp = p->kstack + KSTACKSIZE;
@@ -479,10 +485,8 @@ exit(void)
 void
 exit(void)
 {
-  struct proc *p;
-  struct proc *pee;
+  int found = 0;
   int fd;
-  //int rc;
 
   if(proc == initproc)
     panic("init exiting");
@@ -505,73 +509,43 @@ exit(void)
   // Parent might be sleeping in wait().
   wakeup1(proc->parent);
 
-  int flag = 0;
-  for(p = ptable.pLists.embryo; p != 0 && !flag; p = p->next){
-    if(p->parent == proc){
-      p->parent = initproc;
-      for(pee = ptable.pLists.zombie; pee != 0; pee = pee->next){
-        if(pee == p)
-          wakeup1(initproc);
-      }
-      flag = 1;
-    }
-  }
-  for(p = ptable.pLists.ready; p != 0 && !flag; p = p->next){
-    if(p->parent == proc){
-      p->parent = initproc;
-      for(pee = ptable.pLists.zombie; pee != 0; pee = pee->next){
-        if(pee == p)
-          wakeup1(initproc);
-      }
-      flag = 1;
-    }
-  }
-  for(p = ptable.pLists.free; p != 0 && !flag; p = p->next){
-    if(p->parent == proc){
-      p->parent = initproc;
-      for(pee = ptable.pLists.zombie; pee != 0; pee = pee->next){
-        if(pee == p)
-          wakeup1(initproc);
-      }
-      flag = 1;
-    }
-  }
-  for(p = ptable.pLists.sleep; p != 0 && !flag; p = p->next){
-    if(p->parent == proc){
-      p->parent = initproc;
-      for(pee = ptable.pLists.zombie; pee != 0; pee = pee->next){
-        if(pee == p)
-          wakeup1(initproc);
-      }
-      flag = 1;
-    }
-  }
-  for(p = ptable.pLists.zombie; p != 0 && !flag; p = p->next){
-    if(p->parent == proc){
-      p->parent = initproc;
-      for(pee = ptable.pLists.zombie; pee != 0; pee = pee->next){
-        if(pee == p)
-          wakeup1(initproc);
-      }
-      flag = 1;
-    }
-  }
-  for(p = ptable.pLists.running; p != 0 && !flag; p = p->next){
-    if(p->parent == proc){
-      p->parent = initproc;
-      for(pee = ptable.pLists.zombie; pee != 0; pee = pee->next){
-        if(pee == p)
-          wakeup1(initproc);
-      }
-    }
-  }
+  found = exitSearchAll(&ptable.pLists.embryo, proc);
+  if(!found)
+    found = exitSearchAll(&ptable.pLists.ready, proc);
+  if(!found)
+    found = exitSearchAll(&ptable.pLists.free , proc);
+  if(!found)
+    found = exitSearchAll(&ptable.pLists.sleep , proc);
+  if(!found)
+    found = exitSearchAll(&ptable.pLists.running , proc);
+  if(!found)
+    found = exitSearchAll(&ptable.pLists.zombie , proc);
 
   // Jump into the scheduler, never to return.
-
   changeState(&ptable.pLists.running, &ptable.pLists.runningTail, &ptable.pLists.zombie, &ptable.pLists.zombieTail, proc, RUNNING, ZOMBIE, "exit()");
 
   sched();
   panic("zombie exit");
+}
+
+static int
+exitSearchAll(struct proc** head, struct proc* pExit)
+{
+  struct proc* p;
+  struct proc*  pZ;
+
+  for(p = *head; p != 0; p = p->next){
+    if(p->parent == pExit){
+      p->parent = initproc;
+      for(pZ = ptable.pLists.zombie; pZ != 0; pZ = pZ->next){
+        if(p == pZ)
+          wakeup1(initproc);
+        return 1;
+      }
+    }
+  }
+
+  return 0;
 }
 #endif
 
@@ -787,6 +761,9 @@ wait(void)
     sleep(proc, &ptable.lock);  //DOC: wait-sleep
   }
 }
+
+
+
 #endif
 
 #ifndef CS333_P3P4
