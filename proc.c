@@ -54,7 +54,7 @@ static int  stateListRemove(struct proc** head, struct proc** tail, struct proc*
 //static proc* searchAll(void);
 static int   exitSearchAll(struct proc** head, struct proc* pExit);
 //static int   killSearchAll(void);
-//static int   waitSearchAll(void);
+static int   waitSearchAll(struct proc** head, int* havekids, struct proc* pWait);
 
 static void changeState(struct proc** headRemove, struct proc** tailRemove, struct proc** headAdd, struct proc** tailAdd, struct proc* p, enum procstate stateRemove, enum procstate stateAdd, char* err);
 static void assertState(struct proc* p, enum procstate state);
@@ -296,11 +296,11 @@ userinit(void)
   p->uid = INIT_UID;
   p->gid = INIT_GID;
   #endif
+
   // TODO TODO No lock here?
   rc = stateListRemove(&ptable.pLists.embryo, &ptable.pLists.embryoTail, p);
   if(rc == -1)
     panic("Error: Process to be removed from EMBRYO list does not exist. (proc.c: userinit(): Line 313");               // Traversal of the ready list failed to find match, or ready list empty
-
   assertState(p, EMBRYO);
   p->state = RUNNABLE;
 
@@ -397,9 +397,7 @@ fork(void)
     np->kstack = 0;
 
     acquire(&ptable.lock);
-
     changeState(&ptable.pLists.embryo, &ptable.pLists.embryoTail, &ptable.pLists.free, &ptable.pLists.freeTail, np, EMBRYO, UNUSED, "fork()");
-
     release(&ptable.lock);
 
     return -1;
@@ -427,9 +425,7 @@ fork(void)
 
   // lock to force the compiler to emit the np->state write last.
   acquire(&ptable.lock);
-
   changeState(&ptable.pLists.embryo, &ptable.pLists.embryoTail, &ptable.pLists.ready, &ptable.pLists.readyTail, np, EMBRYO, RUNNABLE, "fork()");
-
   release(&ptable.lock);
 
   return pid;
@@ -509,6 +505,7 @@ exit(void)
   // Parent might be sleeping in wait().
   wakeup1(proc->parent);
 
+  // Search all of the lists for the process
   found = exitSearchAll(&ptable.pLists.embryo, proc);
   if(!found)
     found = exitSearchAll(&ptable.pLists.ready, proc);
@@ -528,6 +525,7 @@ exit(void)
   panic("zombie exit");
 }
 
+// Helper function for exit()s search all
 static int
 exitSearchAll(struct proc** head, struct proc* pExit)
 {
@@ -596,160 +594,31 @@ wait(void)
 int
 wait(void)
 {
-  struct proc *p;
-  struct proc *pee;
-  int havekids, pid;
+  //struct proc *p;
+  //struct proc *pee;
+  int pid;
+  int havekids;
 
   acquire(&ptable.lock);
   for(;;){
     // Scan through table looking for zombie children.
     havekids = 0;
 
-  for(p = ptable.pLists.embryo; p != 0 ; p = p->next){
-      if(p->parent != proc)
-        continue;
-      havekids = 1;
-
-      for(pee = ptable.pLists.zombie; pee != 0; pee = pee->next){
-        if(pee == p){
-          pid = p->pid;
-          kfree(p->kstack);
-          p->kstack = 0;
-          freevm(p->pgdir);
-
-          changeState(&ptable.pLists.zombie, &ptable.pLists.zombieTail, &ptable.pLists.free, &ptable.pLists.freeTail, p, ZOMBIE, UNUSED, "wait()");
-
-          p->pid = 0;
-          p->parent = 0;
-          p->name[0] = 0;
-          p->killed = 0;
-          release(&ptable.lock);
-          return pid;
-        }
-      }
+    pid = waitSearchAll(&ptable.pLists.embryo, &havekids, proc);
+    if(pid == -1)
+      pid = waitSearchAll(&ptable.pLists.ready, &havekids, proc);
+    if(pid == -1)
+      pid = waitSearchAll(&ptable.pLists.free, &havekids, proc);
+    if(pid == -1)
+      pid = waitSearchAll(&ptable.pLists.sleep, &havekids, proc);
+    if(pid == -1)
+      pid = waitSearchAll(&ptable.pLists.running, &havekids, proc);
+    if(pid == -1)
+      pid = waitSearchAll(&ptable.pLists.zombie, &havekids, proc);
+    if(pid != -1){
+      release(&ptable.lock);
+      return pid;
     }
-
-  for(p = ptable.pLists.ready; p != 0 ; p = p->next){
-      if(p->parent != proc)
-        continue;
-      havekids = 1;
-
-      for(pee = ptable.pLists.zombie; pee != 0; pee = pee->next){
-        if(pee == p){
-          pid = p->pid;
-          kfree(p->kstack);
-          p->kstack = 0;
-          freevm(p->pgdir);
-
-          changeState(&ptable.pLists.zombie, &ptable.pLists.zombieTail, &ptable.pLists.free, &ptable.pLists.freeTail, p, ZOMBIE, UNUSED, "wait()");
-
-          p->pid = 0;
-          p->parent = 0;
-          p->name[0] = 0;
-          p->killed = 0;
-          release(&ptable.lock);
-          return pid;
-        }
-      }
-    }
-
-  for(p = ptable.pLists.free; p != 0 ; p = p->next){
-      if(p->parent != proc)
-        continue;
-      havekids = 1;
-
-      for(pee = ptable.pLists.zombie; pee != 0; pee = pee->next){
-        if(pee == p){
-          pid = p->pid;
-          kfree(p->kstack);
-          p->kstack = 0;
-          freevm(p->pgdir);
-
-          changeState(&ptable.pLists.zombie, &ptable.pLists.zombieTail, &ptable.pLists.free, &ptable.pLists.freeTail, p, ZOMBIE, UNUSED, "wait()");
-
-          p->pid = 0;
-          p->parent = 0;
-          p->name[0] = 0;
-          p->killed = 0;
-          release(&ptable.lock);
-          return pid;
-        }
-      }
-    }
-
-  for(p = ptable.pLists.sleep; p != 0 ; p = p->next){
-      if(p->parent != proc)
-        continue;
-      havekids = 1;
-
-      for(pee = ptable.pLists.zombie; pee != 0; pee = pee->next){
-        if(pee == p){
-          pid = p->pid;
-          kfree(p->kstack);
-          p->kstack = 0;
-          freevm(p->pgdir);
-
-          changeState(&ptable.pLists.zombie, &ptable.pLists.zombieTail, &ptable.pLists.free, &ptable.pLists.freeTail, p, ZOMBIE, UNUSED, "wait()");
-
-          p->pid = 0;
-          p->parent = 0;
-          p->name[0] = 0;
-          p->killed = 0;
-          release(&ptable.lock);
-          return pid;
-        }
-      }
-    }
-
-  for(p = ptable.pLists.zombie; p != 0 ; p = p->next){
-      if(p->parent != proc)
-        continue;
-      havekids = 1;
-
-      for(pee = ptable.pLists.zombie; pee != 0; pee = pee->next){
-        if(pee == p){
-          pid = p->pid;
-          kfree(p->kstack);
-          p->kstack = 0;
-          freevm(p->pgdir);
-
-          changeState(&ptable.pLists.zombie, &ptable.pLists.zombieTail, &ptable.pLists.free, &ptable.pLists.freeTail, p, ZOMBIE, UNUSED, "wait()");
-
-          p->pid = 0;
-          p->parent = 0;
-          p->name[0] = 0;
-          p->killed = 0;
-          release(&ptable.lock);
-          return pid;
-        }
-      }
-    }
-
-
-  for(p = ptable.pLists.running; p != 0 ; p = p->next){
-      if(p->parent != proc)
-        continue;
-      havekids = 1;
-
-      for(pee = ptable.pLists.zombie; pee != 0; pee = pee->next){
-        if(pee == p){
-          pid = p->pid;
-          kfree(p->kstack);
-          p->kstack = 0;
-          freevm(p->pgdir);
-
-          changeState(&ptable.pLists.zombie, &ptable.pLists.zombieTail, &ptable.pLists.free, &ptable.pLists.freeTail, p, ZOMBIE, UNUSED, "wait()");
-
-          p->pid = 0;
-          p->parent = 0;
-          p->name[0] = 0;
-          p->killed = 0;
-          release(&ptable.lock);
-          return pid;
-        }
-      }
-    }
-
 
     // No point waiting if we don't have any children.
     if(!havekids || proc->killed){
@@ -762,8 +631,35 @@ wait(void)
   }
 }
 
+static int waitSearchAll(struct proc** head, int* havekids, struct proc* pWait)
+{
+  int pid = -1;
+  struct proc* p1;
+  struct proc* p2;
 
+  for(p1 = *head; p1 != 0 ; p1 = p1->next){
+      if(p1->parent != pWait)
+        continue;
+      *havekids = 1;
 
+      for(p2 = ptable.pLists.zombie; p2 != 0; p2 = p2->next){
+        if(p1 == p2){
+          pid = p1->pid;
+          kfree(p1->kstack);
+          p1->kstack = 0;
+          freevm(p1->pgdir);
+
+          changeState(&ptable.pLists.zombie, &ptable.pLists.zombieTail, &ptable.pLists.free, &ptable.pLists.freeTail, p1, ZOMBIE, UNUSED, "waitSearchAll()");
+
+          p1->pid = 0;
+          p1->parent = 0;
+          p1->name[0] = 0;
+          p1->killed = 0;
+        }
+      }
+    }
+  return pid;
+}
 #endif
 
 #ifndef CS333_P3P4
