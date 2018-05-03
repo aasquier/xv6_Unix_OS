@@ -195,7 +195,6 @@ consoleintr(int (*getc)(void))
   int dofree = 0;
   int dosleep = 0;
   int dozombie = 0;
-  int dodebug = 0;
   #endif
 
   acquire(&cons.lock);
@@ -216,9 +215,6 @@ consoleintr(int (*getc)(void))
       break;
     case C('Z'):  // Process listing.
       dozombie = 1;
-      break;
-    case C('D'):  // Process listing.
-      dodebug = 1;
       break;
     #endif
     case C('U'):  // Kill line.
@@ -262,13 +258,6 @@ consoleintr(int (*getc)(void))
     csleep();
   }
   if(dozombie) {
-    czombie();
-  }
-  if(dodebug) {
-    procdump();
-    cready();
-    cfree();
-    csleep();
     czombie();
   }
   #endif

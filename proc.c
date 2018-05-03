@@ -294,7 +294,6 @@ userinit(void)
   p->gid = INIT_GID;
   #endif
 
-  // TODO TODO No lock here?
   rc = stateListRemove(&ptable.pLists.embryo, &ptable.pLists.embryoTail, p);
   if(rc == -1)
     panic("Error: Process to be removed from EMBRYO list does not exist. (proc.c: userinit(): Line 313");               // Traversal of the ready list failed to find match, or ready list empty
@@ -506,13 +505,13 @@ exit(void)
   if(!found)
     found = exitSearchAll(&ptable.pLists.ready, proc);
   if(!found)
-    found = exitSearchAll(&ptable.pLists.free , proc);
-  if(!found)
     found = exitSearchAll(&ptable.pLists.sleep , proc);
   if(!found)
     found = exitSearchAll(&ptable.pLists.running , proc);
   if(!found)
     found = exitSearchAll(&ptable.pLists.zombie , proc);
+
+
 
   // Jump into the scheduler, never to return.
   changeState(&ptable.pLists.running, &ptable.pLists.runningTail, &ptable.pLists.zombie, &ptable.pLists.zombieTail, proc, RUNNING, ZOMBIE, "exit()");
@@ -602,8 +601,6 @@ wait(void)
     if(pid == -1)
       pid = waitSearchAll(&ptable.pLists.ready, &havekids, proc);
     if(pid == -1)
-      pid = waitSearchAll(&ptable.pLists.free, &havekids, proc);
-    if(pid == -1)
       pid = waitSearchAll(&ptable.pLists.sleep, &havekids, proc);
     if(pid == -1)
       pid = waitSearchAll(&ptable.pLists.running, &havekids, proc);
@@ -613,6 +610,8 @@ wait(void)
       release(&ptable.lock);
       return pid;
     }
+
+
 
     // No point waiting if we don't have any children.
     if(!havekids || proc->killed){
@@ -730,7 +729,7 @@ scheduler(void)
 
     // Remove process from the ready list and place on the running list
     for(p = ptable.pLists.ready; p != 0; p = p->next){
-      //assertState(p, RUNNABLE);
+
 
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
@@ -985,13 +984,12 @@ kill(int pid)
   if(rc == -1)
     rc = killSearchAll(&ptable.pLists.ready, pid);
   if(rc == -1)
-    rc = killSearchAll(&ptable.pLists.free, pid);
-  if(rc == -1)
     rc = killSearchAll(&ptable.pLists.sleep, pid);
   if(rc == -1)
     rc = killSearchAll(&ptable.pLists.running, pid);
   if(rc == -1)
     rc = killSearchAll(&ptable.pLists.zombie, pid);
+
 
   release(&ptable.lock);
   return rc;
@@ -1158,7 +1156,7 @@ cfree(void)
   for(p = ptable.pLists.free; p != 0; p = p->next){
     i++;
   }
-  cprintf("\nFREE LIST SIZE: %d PROCESSES\n", i);
+  cprintf("\nFree List Size: %d Processes\n", i);
 }
 
 void
@@ -1214,8 +1212,7 @@ changeState(struct proc** headRemove, struct proc** tailRemove, struct proc** he
   // Remove the process from source list, and assert it is valid for that list
   rc = stateListRemove(headRemove, tailRemove, p);
   if(rc == -1){
-    cprintf("\n**** %s Fault ****\n", err);
-    panic("Error: Process to be removed from list does not exist.");
+    panic(err);
   }
   assertState(p, stateRemove);
 
@@ -1225,8 +1222,7 @@ changeState(struct proc** headRemove, struct proc** tailRemove, struct proc** he
   // Add to the destination list
   rc = stateListAdd(headAdd, tailAdd, p);
   if(rc == -1){
-    cprintf("\n**** %s Fault ****\n", err);
-    panic("Error: Process failed to be added to the list correctly or list is full)");
+    panic(err);
   }
 }
 

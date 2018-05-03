@@ -20,9 +20,9 @@ main(int argc, char ** argv)
     max = NPROC;   // Default max size is 64 unless otherwise specified
 
   struct uproc* utable = malloc(sizeof(struct uproc) * max);
-
+  if(!utable)
+    printf(2, "Malloc failed to allocate user table. (ps.c)");
   int size = getprocs(max, utable);
-
   if(size < 1)
     printf(2, "There was an error getting processes\n");
   else{
