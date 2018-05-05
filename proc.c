@@ -195,12 +195,10 @@ getprocs(uint max, struct uproc* utable)
       utable[i].CPU_total_ticks = p->cpu_ticks_total;
       utable[i].size = p->sz;
       safestrcpy(utable[i].name, p->name, sizeof(char) * STRMAX);
-
       if(p->parent)
         utable[i].ppid = p->parent->pid;
       else
         utable[i].ppid = p->pid;
-
       switch(p->state){
         case UNUSED:   safestrcpy(utable[i].state, "unused", STRMAX);   break;
         case EMBRYO:   safestrcpy(utable[i].state, "embryo", STRMAX);   break;
@@ -1184,7 +1182,7 @@ czombie(void)
     if(p->parent)
       ppID = p->parent->pid;
     else
-      ppID = 1;
+      ppID = p->pid;
     if(p->next)
       cprintf("(%d, %d) -> ", p->pid, ppID);
     else
