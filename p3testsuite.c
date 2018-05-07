@@ -8,11 +8,11 @@
 #include "uproc.h"
 #define SHORT_WAIT 5
 #define LONG_WAIT 10
-#define TEST_ALLOC
-#define TEST_SLEEP
+//#define TEST_ALLOC
+//#define TEST_SLEEP
 #define TEST_ROUNDROBIN
-#define TEST_ZOMBIE
-#define TEST_KILL
+//#define TEST_ZOMBIE
+//#define TEST_KILL
 #ifdef TEST_ALLOC
 //Test by Jordan Green
 static void

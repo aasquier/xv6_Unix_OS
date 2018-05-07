@@ -80,6 +80,8 @@ struct proc {
 
   #ifdef CS333_P3P4
   struct proc *next;            // Next pointer for lists
+  uint   priority;
+  int   budget;
   #endif
 };
 

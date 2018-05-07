@@ -26,12 +26,24 @@ main(int argc, char ** argv)
   if(size < 1)
     printf(2, "There was an error getting processes\n");
   else{
+    #ifdef CS333_P3P4
+    printf(1, "\nPID\tName\t\tUID\tGID\tPPID\tPrio\tElapsed\t  CPU\t\tState\tSize\n");
+    #else
     printf(1, "\nPID\tName\t\tUID\tGID\tPPID\tElapsed\t  CPU\t\tState\tSize\n");
+    #endif
     for(int i = 0; i < size; i++){
       if(strlen(utable[i].name) < 8)
+        #ifdef CS333_P3P4
+        printf(1, "%d\t%s\t\t%d\t%d\t%d\t%d\t", utable[i].pid, utable[i].name, utable[i].uid, utable[i].gid, utable[i].ppid, utable[i].priority);
+        #else
         printf(1, "%d\t%s\t\t%d\t%d\t%d\t", utable[i].pid, utable[i].name, utable[i].uid, utable[i].gid, utable[i].ppid);
+        #endif
       else
+        #ifdef CS333_P3P4
+        printf(1, "%d\t%s\t%d\t%d\t%d\t%d\t", utable[i].pid, utable[i].name, utable[i].uid, utable[i].gid, utable[i].ppid, utable[i].priority);
+        #else
         printf(1, "%d\t%s\t%d\t%d\t%d\t", utable[i].pid, utable[i].name, utable[i].uid, utable[i].gid, utable[i].ppid);
+        #endif
 
       uint elapsed_secs = utable[i].elapsed_ticks / 1000;
       uint elapsed_mils = utable[i].elapsed_ticks % 1000;
