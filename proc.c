@@ -314,8 +314,8 @@ userinit(void)
   ptable.pLists.ready[0]     = p;
   ptable.pLists.readyTail[0] = p;
   p->next                    = 0;
-  p->priority                = 0;
-  p->budget                  = MAX_BUDGET;
+  //p->priority                = 0;
+  //p->budget                  = MAX_BUDGET;
 }
 #endif
 
@@ -525,8 +525,6 @@ exit(void)
     found = exitSearchAll(&ptable.pLists.running , proc);
   if(!found)
     found = exitSearchAll(&ptable.pLists.zombie , proc);
-
-
 
   // Jump into the scheduler, never to return.
   changeState(&ptable.pLists.running, &ptable.pLists.runningTail, &ptable.pLists.zombie, &ptable.pLists.zombieTail, proc, RUNNING, ZOMBIE, "exit()");
@@ -849,8 +847,8 @@ priorityAdjust(void)
 
   for(i=1; i < MAXPRIO+1; i++){
     for(p = ptable.pLists.ready[i]; p != 0;){
-      assertState(p, RUNNABLE);
       stateListRemove(&ptable.pLists.ready[i], &ptable.pLists.readyTail[i], p);
+      assertState(p, RUNNABLE);
       p->priority--;
       p->budget = MAX_BUDGET;
       stateListAdd(&ptable.pLists.ready[i-1], &ptable.pLists.readyTail[i-1], p);
@@ -899,20 +897,20 @@ void
 yield(void)
 {
   acquire(&ptable.lock);  //DOC: yieldlock
-  struct proc* p;
+ // struct proc* p;
 
   // Remove a process from the running list, and put it on the ready list       TODO   Not sure if this is where this logic belongs
-  for(p = ptable.pLists.running; p != 0; p = p->next){
-    if(p == proc){
+//  for(p = ptable.pLists.running; p != 0; p = p->next){
+ //   if(p == proc){
       proc->budget = proc->budget - (ticks - proc->cpu_ticks_in);
       if(proc->budget <= 0){
         proc->budget = MAX_BUDGET;
         if(proc->priority < MAXPRIO)
           proc->priority++;
       }
-      changeState(&ptable.pLists.running, &ptable.pLists.runningTail, &ptable.pLists.ready[p->priority], &ptable.pLists.readyTail[p->priority], proc, RUNNING, RUNNABLE, "yield()");
-    }
-  }
+      changeState(&ptable.pLists.running, &ptable.pLists.runningTail, &ptable.pLists.ready[proc->priority], &ptable.pLists.readyTail[proc->priority], proc, RUNNING, RUNNABLE, "yield()");
+  //  }
+ // }
 
   sched();
   release(&ptable.lock);
@@ -1000,6 +998,12 @@ sleep(void *chan, struct spinlock *lk)
   proc->chan = chan;
 
   // Put running process to sleep
+  proc->budget = proc->budget - (ticks - proc->cpu_ticks_in);
+  if(proc->budget <= 0){
+    proc->budget = MAX_BUDGET;
+    if(proc->priority < MAXPRIO)
+      proc->priority++;
+  }
   changeState(&ptable.pLists.running, &ptable.pLists.runningTail, &ptable.pLists.sleep, &ptable.pLists.sleepTail, proc, RUNNING, SLEEPING, "sleep()");
 
   sched();
