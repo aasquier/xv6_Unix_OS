@@ -203,7 +203,9 @@ getprocs(uint max, struct uproc* utable)
       utable[i].elapsed_ticks   = ticks - p->start_ticks;
       utable[i].CPU_total_ticks = p->cpu_ticks_total;
       utable[i].size            = p->sz;
+      #ifdef CS333_P3P4
       utable[i].priority        = p->priority;
+      #endif
       safestrcpy(utable[i].name, p->name, sizeof(char) * STRMAX);
 
       if(p->parent)
@@ -791,6 +793,7 @@ scheduler(void)
   int idle;  // for checking if processor is idle
   int i;
 
+  //ptable.PromoteAtTime = ticks + TICKS_TO_PROMOTE;        // TODO Proper placement ?? TODO
   for(;;){
     // Enable interrupts on this processor.
     sti();
@@ -800,9 +803,12 @@ scheduler(void)
 
     acquire(&ptable.lock);
 
-    if(ticks >= ptable.PromoteAtTime)                                     // TODO Correct placing ?? TODO
+    if(ticks >= ptable.PromoteAtTime){                                     // TODO Correct placing ?? TODO
+      //cprintf("DBUG sched()");
       priorityAdjust();
       ptable.PromoteAtTime = ticks + TICKS_TO_PROMOTE;
+
+    }
 
     for(i=0; i < MAXPRIO+1; i++){
       // Remove process from the ready list and place on the running list
@@ -846,7 +852,8 @@ priorityAdjust(void)
   struct proc* p;
 
   for(i=1; i < MAXPRIO+1; i++){
-    for(p = ptable.pLists.ready[i]; p != 0;){
+    for(p = ptable.pLists.ready[i]; p != 0; p = ptable.pLists.ready[i]){
+      //p = ptable.pLists.ready[i];
       stateListRemove(&ptable.pLists.ready[i], &ptable.pLists.readyTail[i], p);
       assertState(p, RUNNABLE);
       p->priority--;
@@ -897,7 +904,7 @@ void
 yield(void)
 {
   acquire(&ptable.lock);  //DOC: yieldlock
- // struct proc* p;
+  //struct proc* p;
 
   // Remove a process from the running list, and put it on the ready list       TODO   Not sure if this is where this logic belongs
 //  for(p = ptable.pLists.running; p != 0; p = p->next){
@@ -1313,6 +1320,7 @@ cready(void)
   struct proc *p;
   int i;
 
+  acquire(&ptable.lock);
   cprintf("\nReady List Processes:\n");
   for(i=0; i < MAXPRIO+1; i++){
     if(i < 10)
@@ -1328,6 +1336,7 @@ cready(void)
     if(!ptable.pLists.ready[i])
       cprintf("EMPTY\n\n");
   }
+  release(&ptable.lock);
 }
 
 void
