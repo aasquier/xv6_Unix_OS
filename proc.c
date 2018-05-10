@@ -60,7 +60,7 @@ static void assertState(struct proc* p, enum procstate state);
 static int  exitSearchReady(struct proc* p);
 static int  killSearchReady(int pid);
 static int  waitSearchReady(int * havekids, struct proc* p);
-static void priorityAdjust(void);
+static void promoteProcs(void);
 #endif
 
 void
@@ -316,8 +316,6 @@ userinit(void)
   ptable.pLists.ready[0]     = p;
   ptable.pLists.readyTail[0] = p;
   p->next                    = 0;
-  //p->priority                = 0;
-  //p->budget                  = MAX_BUDGET;
 }
 #endif
 
@@ -520,7 +518,6 @@ exit(void)
   found = exitSearchAll(&ptable.pLists.embryo, proc);
   if(!found)
     found = exitSearchReady(proc);
-    //found = exitSearchAll(&ptable.pLists.ready, proc);
   if(!found)
     found = exitSearchAll(&ptable.pLists.sleep , proc);
   if(!found)
@@ -639,7 +636,6 @@ wait(void)
     pid = waitSearchAll(&ptable.pLists.embryo, &havekids, proc);
     if(pid == -1)
       pid = waitSearchReady(&havekids, proc);
-      //pid = waitSearchAll(&ptable.pLists.ready, &havekids, proc);
     if(pid == -1)
       pid = waitSearchAll(&ptable.pLists.sleep, &havekids, proc);
     if(pid == -1)
@@ -650,8 +646,6 @@ wait(void)
       release(&ptable.lock);
       return pid;
     }
-
-
 
     // No point waiting if we don't have any children.
     if(!havekids || proc->killed){
@@ -793,7 +787,6 @@ scheduler(void)
   int idle;  // for checking if processor is idle
   int i;
 
-  //ptable.PromoteAtTime = ticks + TICKS_TO_PROMOTE;        // TODO Proper placement ?? TODO
   for(;;){
     // Enable interrupts on this processor.
     sti();
@@ -803,16 +796,9 @@ scheduler(void)
 
     acquire(&ptable.lock);
 
-    if(ticks >= ptable.PromoteAtTime){                                     // TODO Correct placing ?? TODO
-      //cprintf("DBUG sched()");
-      priorityAdjust();
-      ptable.PromoteAtTime = ticks + TICKS_TO_PROMOTE;
-
-    }
-
     for(i=0; i < MAXPRIO+1; i++){
       // Remove process from the ready list and place on the running list
-      for(p = ptable.pLists.ready[i]; p != 0; p = p->next){
+      for(p = ptable.pLists.ready[i]; p != 0; p = ptable.pLists.ready[i]){
 
         // Switch to chosen process.  It is the process's job
         // to release ptable.lock and then reacquire it
@@ -821,7 +807,7 @@ scheduler(void)
         proc = p;
         switchuvm(p);
 
-        changeState(&ptable.pLists.ready[i], &ptable.pLists.readyTail[i], &ptable.pLists.running, &ptable.pLists.runningTail, p, RUNNABLE, RUNNING, "sheduler()");
+        changeState(&ptable.pLists.ready[i], &ptable.pLists.readyTail[i], &ptable.pLists.running, &ptable.pLists.runningTail, p, RUNNABLE, RUNNING, "scheduler()");
 
         #ifdef CS333_P2
         p->cpu_ticks_in = ticks;
@@ -834,7 +820,12 @@ scheduler(void)
         // It should have changed its p->state before coming back.
         proc = 0;
       }
+      if(ticks >= ptable.PromoteAtTime){
+        promoteProcs();
+        ptable.PromoteAtTime = ticks + TICKS_TO_PROMOTE;
+      }
     }
+
     release(&ptable.lock);
 
     // if idle, wait for next interrupt
@@ -844,22 +835,33 @@ scheduler(void)
     }
   }
 }
-
+// TODO add rc to catch remove/add TODO
 static void
-priorityAdjust(void)
+promoteProcs(void)
 {
   int i;
   struct proc* p;
 
   for(i=1; i < MAXPRIO+1; i++){
     for(p = ptable.pLists.ready[i]; p != 0; p = ptable.pLists.ready[i]){
-      //p = ptable.pLists.ready[i];
       stateListRemove(&ptable.pLists.ready[i], &ptable.pLists.readyTail[i], p);
       assertState(p, RUNNABLE);
       p->priority--;
       p->budget = MAX_BUDGET;
       stateListAdd(&ptable.pLists.ready[i-1], &ptable.pLists.readyTail[i-1], p);
     }
+  }
+  for(p = ptable.pLists.sleep; p != 0; p = p->next){
+      assertState(p, SLEEPING);
+      if(p->priority > 0)
+        p->priority--;
+      p->budget = MAX_BUDGET;
+  }
+  for(p = ptable.pLists.running; p != 0; p = p->next){
+      assertState(p, RUNNING);
+      if(p->priority > 0)
+        p->priority--;
+      p->budget = MAX_BUDGET;
   }
 }
 #endif
@@ -904,20 +906,14 @@ void
 yield(void)
 {
   acquire(&ptable.lock);  //DOC: yieldlock
-  //struct proc* p;
 
-  // Remove a process from the running list, and put it on the ready list       TODO   Not sure if this is where this logic belongs
-//  for(p = ptable.pLists.running; p != 0; p = p->next){
- //   if(p == proc){
-      proc->budget = proc->budget - (ticks - proc->cpu_ticks_in);
-      if(proc->budget <= 0){
-        proc->budget = MAX_BUDGET;
-        if(proc->priority < MAXPRIO)
-          proc->priority++;
-      }
-      changeState(&ptable.pLists.running, &ptable.pLists.runningTail, &ptable.pLists.ready[proc->priority], &ptable.pLists.readyTail[proc->priority], proc, RUNNING, RUNNABLE, "yield()");
-  //  }
- // }
+  proc->budget = proc->budget - (ticks - proc->cpu_ticks_in);
+  if(proc->budget <= 0){
+    proc->budget = MAX_BUDGET;
+    if(proc->priority < MAXPRIO)
+      proc->priority++;
+  }
+  changeState(&ptable.pLists.running, &ptable.pLists.runningTail, &ptable.pLists.ready[proc->priority], &ptable.pLists.readyTail[proc->priority], proc, RUNNING, RUNNABLE, "yield()");
 
   sched();
   release(&ptable.lock);
@@ -1097,14 +1093,12 @@ kill(int pid)
   rc = killSearchAll(&ptable.pLists.embryo, pid);
   if(rc == -1)
     rc = killSearchReady(pid);
-    //rc = killSearchAll(&ptable.pLists.ready, pid);
   if(rc == -1)
     rc = killSearchAll(&ptable.pLists.sleep, pid);
   if(rc == -1)
     rc = killSearchAll(&ptable.pLists.running, pid);
   if(rc == -1)
     rc = killSearchAll(&ptable.pLists.zombie, pid);
-
 
   release(&ptable.lock);
   return rc;
@@ -1184,7 +1178,7 @@ procdumpP4(struct proc *p, char *state)
   if(strlen(p->name) < 8)
     cprintf("%d\t%s\t\t%d\t%d\t%d\t%d\t", p->pid, p->name, p->uid, p->gid, ppid, p->priority);
   else
-    cprintf("%d\t%s\t%d\t%d\t%d\t", p->pid, p->name, p->uid, p->gid, ppid);
+    cprintf("%d\t%s\t%d\t%d\t%d\t%d\t", p->pid, p->name, p->uid, p->gid, ppid, p->priority);
 
   if((elapsed_mils < 1000) && (elapsed_mils > 99))
     cprintf("%d.%d\t  ", elapsed_secs, elapsed_mils);
@@ -1283,6 +1277,7 @@ procdump(void)
   #else
   #define HEADER ""
   #endif
+  acquire(&ptable.lock);
 
   cprintf(HEADER);
 
@@ -1311,6 +1306,8 @@ procdump(void)
     }
     cprintf("\n");
   }
+
+  release(&ptable.lock);
 }
 
 #ifdef CS333_P3P4
