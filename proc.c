@@ -61,6 +61,7 @@ static int  exitSearchReady(struct proc* p);
 static int  killSearchReady(int pid);
 static int  waitSearchReady(int * havekids, struct proc* p);
 static void promoteProcs(void);
+static void assertPrio(struct proc* p, uint prio);
 #endif
 
 void
@@ -236,6 +237,65 @@ getprocs(uint max, struct uproc* utable)
 }
 #endif
 
+#ifdef CS333_P3P4
+int
+findPIDadjust(uint pID, uint prio)
+{
+  int i;
+  int rc;
+  struct proc* p;
+
+  acquire(&ptable.lock);
+
+  for(i=0; i < MAXPRIO+1; i++){
+    for(p = ptable.pLists.ready[i]; p != 0; p = p->next){
+      if(p->pid == pID){
+        if(p->priority != prio){
+          rc = stateListRemove(&ptable.pLists.ready[i], &ptable.pLists.readyTail[i], p);
+          if(rc == -1)
+            panic("Failed to remove process from the proper ready list. findPIDadjust()");
+          assertState(p, RUNNABLE);
+          assertPrio(p, i);
+          p->priority = prio;
+          p->budget = MAX_BUDGET;
+          rc = stateListAdd(&ptable.pLists.ready[p->priority], &ptable.pLists.readyTail[p->priority], p);
+          if(rc == -1)
+            panic("Failed to add process to the proper ready list. findPIDadjust()");
+        }
+        release(&ptable.lock);
+        return 0;
+      }
+    }
+  }
+  for(p = ptable.pLists.sleep; p != 0; p = p->next){
+    if(p->pid == pID){
+      if(p->priority != prio){
+        assertState(p, SLEEPING);
+        p->priority = prio;
+        p->budget = MAX_BUDGET;
+      }
+      release(&ptable.lock);
+      return 0;
+    }
+  }
+  for(p = ptable.pLists.running; p != 0; p = p->next){
+    if(p->pid == pID){
+      if(p->priority != prio){
+        assertState(p, RUNNING);
+        p->priority = prio;
+        p->budget = MAX_BUDGET;
+      }
+      release(&ptable.lock);
+      return 0;
+    }
+  }
+
+  release(&ptable.lock);
+
+  return -1;
+}
+#endif
+
 #ifndef CS333_P3P4
 //PAGEBREAK: 32
 // Set up first user process.
@@ -281,8 +341,8 @@ userinit(void)
   acquire(&ptable.lock);
   initProcessLists();
   initFreeList();
-  ptable.PromoteAtTime = ticks + TICKS_TO_PROMOTE;        // TODO Proper placement ?? TODO
   release(&ptable.lock);
+
 
   p = allocproc();
   initproc = p;
@@ -433,7 +493,6 @@ fork(void)
 
   // lock to force the compiler to emit the np->state write last.
   acquire(&ptable.lock);
-  //cprintf("Debug fork()\n");
   changeState(&ptable.pLists.embryo, &ptable.pLists.embryoTail, &ptable.pLists.ready[0], &ptable.pLists.readyTail[0], np, EMBRYO, RUNNABLE, "fork()");
   release(&ptable.lock);
 
@@ -786,11 +845,12 @@ scheduler(void)
   struct proc *p;
   int idle;  // for checking if processor is idle
   int i;
+  int rc;
+  ptable.PromoteAtTime = ticks + TICKS_TO_PROMOTE;
 
   for(;;){
     // Enable interrupts on this processor.
     sti();
-
     idle = 1;  // assume idle unless we schedule a process
     // Loop over process table looking for process to run.
 
@@ -807,7 +867,19 @@ scheduler(void)
         proc = p;
         switchuvm(p);
 
-        changeState(&ptable.pLists.ready[i], &ptable.pLists.readyTail[i], &ptable.pLists.running, &ptable.pLists.runningTail, p, RUNNABLE, RUNNING, "scheduler()");
+        rc = stateListRemove(&ptable.pLists.ready[i], &ptable.pLists.readyTail[i],  p);
+        if(rc == -1){
+          panic("Process failed to be removed from the ready list. scheduler()");
+        }
+        assertState(p, RUNNABLE);
+        assertPrio(p, i);
+
+        p->state = RUNNING;
+
+        rc = stateListAdd(&ptable.pLists.running, &ptable.pLists.runningTail, p);
+        if(rc == -1){
+          panic("Process failed to be added to the proper ready list. scheduler()");
+        }
 
         #ifdef CS333_P2
         p->cpu_ticks_in = ticks;
@@ -819,10 +891,12 @@ scheduler(void)
         // Process is done running for now.
         // It should have changed its p->state before coming back.
         proc = 0;
-      }
-      if(ticks >= ptable.PromoteAtTime){
-        promoteProcs();
-        ptable.PromoteAtTime = ticks + TICKS_TO_PROMOTE;
+
+        if(ticks >= ptable.PromoteAtTime){
+          promoteProcs();
+          ptable.PromoteAtTime = ticks + TICKS_TO_PROMOTE;
+          // TODO Should the loop start back at 0? TODO
+        }
       }
     }
 
@@ -835,20 +909,26 @@ scheduler(void)
     }
   }
 }
-// TODO add rc to catch remove/add TODO
+
 static void
 promoteProcs(void)
 {
   int i;
+  int rc;
   struct proc* p;
 
   for(i=1; i < MAXPRIO+1; i++){
     for(p = ptable.pLists.ready[i]; p != 0; p = ptable.pLists.ready[i]){
-      stateListRemove(&ptable.pLists.ready[i], &ptable.pLists.readyTail[i], p);
+      rc = stateListRemove(&ptable.pLists.ready[i], &ptable.pLists.readyTail[i], p);
+      if(rc == -1)
+        panic("Failed to remove process from the proper ready list. promoteProcs()");
       assertState(p, RUNNABLE);
+      assertPrio(p, i);
       p->priority--;
       p->budget = MAX_BUDGET;
-      stateListAdd(&ptable.pLists.ready[i-1], &ptable.pLists.readyTail[i-1], p);
+      rc = stateListAdd(&ptable.pLists.ready[i-1], &ptable.pLists.readyTail[i-1], p);
+      if(rc == -1)
+        panic("Failed to add process to the proper ready list. promoteProcs()");
     }
   }
   for(p = ptable.pLists.sleep; p != 0; p = p->next){
@@ -1390,6 +1470,13 @@ assertState(struct proc* p, enum procstate state)
     pstate = states[p->state];
     panic(pstate);
   }
+}
+
+static void
+assertPrio(struct proc* p, uint prio)
+{
+  if(p->priority != prio)
+    panic("Process removed from priority queue has incorrect priority. assertPrio()");
 }
 
 static void

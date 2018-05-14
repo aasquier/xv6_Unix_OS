@@ -95,3 +95,5 @@ p2testsuite.c
 uproc.h
 pstest.c
 p3testsuite.c
+p4ptest.c
+p4test.c

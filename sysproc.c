@@ -183,14 +183,11 @@ sys_setpriority(void)
   if(argint(1, &prio) < 0)
     return -1;
 
-  if(pID != proc->pid)                // TODO This probably needs changed
+  if(pID < 1)
     return -1;
   if(prio < 0 || prio > MAXPRIO)
     return -1;
 
-  proc->priority = prio;
-  proc->budget   = MAX_BUDGET;
-
-  return 0;
+  return findPIDadjust(pID, prio);
 }
 #endif
