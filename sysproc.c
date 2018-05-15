@@ -188,6 +188,6 @@ sys_setpriority(void)
   if(prio < 0 || prio > MAXPRIO)
     return -1;
 
-  return findPIDadjust(pID, prio);
+  return setpriority(pID, prio);
 }
 #endif

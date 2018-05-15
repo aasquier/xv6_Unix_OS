@@ -19,6 +19,6 @@
 #endif
 #ifdef CS333_P3P4
 #define MAXPRIO          5 // Maximum number of priority queues in the MLFQ
-#define TICKS_TO_PROMOTE 30000
-#define MAX_BUDGET       500
+#define TICKS_TO_PROMOTE 500
+#define MAX_BUDGET       100
 #endif

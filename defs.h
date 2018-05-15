@@ -124,7 +124,7 @@ void            cready(void);
 void            cfree(void);
 void            csleep(void);
 void            czombie(void);
-int             findPIDadjust(uint pID, uint prio);
+int             setpriority(uint pID, uint prio);
 
 // swtch.S
 void            swtch(struct context**, struct context*);

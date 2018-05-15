@@ -239,7 +239,7 @@ getprocs(uint max, struct uproc* utable)
 
 #ifdef CS333_P3P4
 int
-findPIDadjust(uint pID, uint prio)
+setpriority(uint pID, uint prio)
 {
   int i;
   int rc;
@@ -253,14 +253,14 @@ findPIDadjust(uint pID, uint prio)
         if(p->priority != prio){
           rc = stateListRemove(&ptable.pLists.ready[i], &ptable.pLists.readyTail[i], p);
           if(rc == -1)
-            panic("Failed to remove process from the proper ready list. findPIDadjust()");
+            panic("Failed to remove process from the proper ready list. setpriority()");
           assertState(p, RUNNABLE);
           assertPrio(p, i);
           p->priority = prio;
           p->budget = MAX_BUDGET;
           rc = stateListAdd(&ptable.pLists.ready[p->priority], &ptable.pLists.readyTail[p->priority], p);
           if(rc == -1)
-            panic("Failed to add process to the proper ready list. findPIDadjust()");
+            panic("Failed to add process to the proper ready list. setpriority()");
         }
         release(&ptable.lock);
         return 0;
@@ -860,6 +860,12 @@ scheduler(void)
       // Remove process from the ready list and place on the running list
       for(p = ptable.pLists.ready[i]; p != 0; p = ptable.pLists.ready[i]){
 
+        if(ticks >= ptable.PromoteAtTime){
+          promoteProcs();
+          ptable.PromoteAtTime = ticks + TICKS_TO_PROMOTE;
+          i = MAXPRIO;
+          break;
+        }
         // Switch to chosen process.  It is the process's job
         // to release ptable.lock and then reacquire it
         // before jumping back to us.
@@ -884,19 +890,13 @@ scheduler(void)
         #ifdef CS333_P2
         p->cpu_ticks_in = ticks;
         #endif
-
         swtch(&cpu->scheduler, proc->context);
         switchkvm();
 
         // Process is done running for now.
         // It should have changed its p->state before coming back.
         proc = 0;
-
-        if(ticks >= ptable.PromoteAtTime){
-          promoteProcs();
-          ptable.PromoteAtTime = ticks + TICKS_TO_PROMOTE;
-          // TODO Should the loop start back at 0? TODO
-        }
+        i = MAXPRIO;
       }
     }
 
@@ -1421,16 +1421,21 @@ cfree(void)
 {
   struct proc *p;
   int i = 0;
+
+  acquire(&ptable.lock);
   for(p = ptable.pLists.free; p != 0; p = p->next){
     i++;
   }
   cprintf("\nFree List Size: %d Processes\n", i);
+  release(&ptable.lock);
 }
 
 void
 csleep(void)
 {
   struct proc *p;
+
+  acquire(&ptable.lock);
   cprintf("\nSleep List Processes:\n");
   for(p = ptable.pLists.sleep; p != 0; p = p->next){
     if(p->next)
@@ -1440,6 +1445,7 @@ csleep(void)
   }
   if(!ptable.pLists.sleep)
     cprintf("EMPTY\n");
+  release(&ptable.lock);
 }
 
 void
@@ -1447,6 +1453,8 @@ czombie(void)
 {
   struct proc *p;
   uint ppID = 0;
+
+  acquire(&ptable.lock);
   cprintf("\nZombie List Processes:\n");
   for(p = ptable.pLists.zombie; p != 0; p = p->next){
     if(p->parent)
@@ -1460,6 +1468,7 @@ czombie(void)
   }
   if(!ptable.pLists.zombie)
     cprintf("EMPTY\n");
+  release(&ptable.lock);
 }
 
 static void

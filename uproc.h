@@ -11,5 +11,7 @@ struct uproc {
 	uint size;
 	char name[STRMAX];
 
+  #ifdef CS333_P3P4
   uint priority;
+  #endif
 };

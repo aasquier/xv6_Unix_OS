@@ -39,8 +39,7 @@ int setgid(uint);
 int getprocs(uint max, struct uproc* table);
 #endif
 #ifdef CS333_P3P4
-int setpriority(int pid, int priority);   // TODO Need? TODO
-int findPIDadjust(uint prio, uint pID);
+int setpriority(int pid, int priority);
 #endif
 // ulib.c
 int stat(char*, struct stat*);
