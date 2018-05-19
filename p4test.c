@@ -1,104 +1,55 @@
-#ifdef CS333_P3P4
+// Test program for CS333 scheduler, project 4.
+
 #include "types.h"
 #include "user.h"
-#include "uproc.h"
-#define SHORT_WAIT 3
-#define LONG_WAIT 10
-#define SUPER_WAIT 20
-#define TEST2
-//#define TEST3
 
+// Must match NPRIO in proc.h
+#define PrioCount 4
+#define numChildren 12
 
-#ifdef TEST2
-static void
-test_2()
+void
+countForever(int i)
 {
-  int pids[16];
-  int count = 0;
-  int rc = 0;
-  printf(1, "Demotion test started...\n");
-  memset(&pids, 0, sizeof(pids));
-  while(count < 16){
-    rc = fork();
-    if(rc){
-      pids[count] = rc;
-      count++;
-    }
-    else
-      break;
+  int j, p, rc;
+  unsigned long count = 0;
+
+  j = getpid();
+  p = i%PrioCount;
+  rc = setpriority(j, p);
+  if (rc == 0)
+    printf(1, "%d: start prio %d\n", j, p);
+  else {
+    printf(1, "setpriority failed. file %s at %d\n", __FILE__, __LINE__);
+    exit();
   }
-  if(rc == 0){
-    if((getpid() % 2) != 0){
-      while(1);
+
+  while (1) {
+    count++;
+    if ((count & (0x1FFFFFFF)) == 0) {
+      p = (p+1) % PrioCount;
+      rc = setpriority(j, p);
+      if (rc == 0)
+        printf(1, "%d: new prio %d\n", j, p);
+      else {
+        printf(1, "setpriority failed. file %s at %d\n", __FILE__, __LINE__);
+        exit();
+      }
     }
-    else{
-      sleep(1000000);
-    }
-  }
-  else{
-    printf(1, "Press control-p to show initial state, sleeping for %d seconds.\n", LONG_WAIT);
-    sleep(LONG_WAIT * 1000);
-    printf(1, "Press control-p to show Sleep/Running Promotion. Sleeping for %d seconds.\n", SUPER_WAIT);
-    for(int i=0; i < 16; i++){
-      setpriority(pids[i], 4);
-    }
-    sleep(SUPER_WAIT * 1000);
-    printf(1, "Cleaning up children...\n");
-    count = 0;
-    while(pids[count] > 0){
-      kill(pids[count++]);
-      wait();
-    }
-    printf(1, "Test concluded.\n");
   }
 }
-#endif
-
-#ifdef TEST3
-static void
-test_3()
-{
-  int pids[16];
-  int count = 0;
-  int rc = 0;
-  printf(1, "Demotion test started...\n");
-  memset(&pids, 0, sizeof(pids));
-  while(count < 16){
-    rc = fork();
-    if(rc){
-      pids[count] = rc;
-      count++;
-    }
-    else
-      break;
-  }
-  if(rc == 0)
-    while(1);
-  else{
-    printf(1, "Press control-r to show demotions for %d seconds.\n", LONG_WAIT);
-    sleep(LONG_WAIT * 1000);
-    printf(1, "Cleaning up children...\n");
-    count = 0;
-    while(pids[count] > 0){
-      kill(pids[count++]);
-      wait();
-    }
-    printf(1, "Test concluded.\n");
-  }
-}
-#endif
-
 
 int
-main(int argc, char *argv[])
+main(void)
 {
-#ifdef TEST2
-  test_2();
-#endif
-#ifdef TEST3
-  test_3();
-#endif
-  printf(1, "All tests concluded.\n");
+  int i, rc;
+
+  for (i=0; i<numChildren; i++) {
+    rc = fork();
+    if (!rc) { // child
+      countForever(i);
+    }
+  }
+  // what the heck, let's have the parent waste time as well!
+  countForever(1);
   exit();
 }
-#endif

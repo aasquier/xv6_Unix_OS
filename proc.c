@@ -341,8 +341,8 @@ userinit(void)
   acquire(&ptable.lock);
   initProcessLists();
   initFreeList();
+  ptable.PromoteAtTime = ticks + TICKS_TO_PROMOTE;
   release(&ptable.lock);
-
 
   p = allocproc();
   initproc = p;
@@ -846,7 +846,7 @@ scheduler(void)
   int idle;  // for checking if processor is idle
   int i;
   int rc;
-  ptable.PromoteAtTime = ticks + TICKS_TO_PROMOTE;
+
 
   for(;;){
     // Enable interrupts on this processor.
@@ -855,17 +855,16 @@ scheduler(void)
     // Loop over process table looking for process to run.
 
     acquire(&ptable.lock);
+    if(ticks >= ptable.PromoteAtTime){
+      promoteProcs();
+      ptable.PromoteAtTime = ticks + TICKS_TO_PROMOTE;
+    }
 
     for(i=0; i < MAXPRIO+1; i++){
       // Remove process from the ready list and place on the running list
-      for(p = ptable.pLists.ready[i]; p != 0; p = ptable.pLists.ready[i]){
+      p = ptable.pLists.ready[i];
+      if(p){
 
-        if(ticks >= ptable.PromoteAtTime){
-          promoteProcs();
-          ptable.PromoteAtTime = ticks + TICKS_TO_PROMOTE;
-          i = MAXPRIO;
-          break;
-        }
         // Switch to chosen process.  It is the process's job
         // to release ptable.lock and then reacquire it
         // before jumping back to us.
@@ -896,11 +895,12 @@ scheduler(void)
         // Process is done running for now.
         // It should have changed its p->state before coming back.
         proc = 0;
-        i = MAXPRIO;
+        break;
       }
     }
 
     release(&ptable.lock);
+
 
     // if idle, wait for next interrupt
     if (idle) {
@@ -945,7 +945,6 @@ promoteProcs(void)
   }
 }
 #endif
-
 // Enter scheduler.  Must hold only ptable.lock
 // and have changed proc->state.
 void
@@ -1394,10 +1393,10 @@ procdump(void)
 void
 cready(void)
 {
+  acquire(&ptable.lock);
   struct proc *p;
   int i;
 
-  acquire(&ptable.lock);
   cprintf("\nReady List Processes:\n");
   for(i=0; i < MAXPRIO+1; i++){
     if(i < 10)
@@ -1419,10 +1418,10 @@ cready(void)
 void
 cfree(void)
 {
+  acquire(&ptable.lock);
   struct proc *p;
   int i = 0;
 
-  acquire(&ptable.lock);
   for(p = ptable.pLists.free; p != 0; p = p->next){
     i++;
   }
@@ -1433,9 +1432,9 @@ cfree(void)
 void
 csleep(void)
 {
+  acquire(&ptable.lock);
   struct proc *p;
 
-  acquire(&ptable.lock);
   cprintf("\nSleep List Processes:\n");
   for(p = ptable.pLists.sleep; p != 0; p = p->next){
     if(p->next)
@@ -1451,10 +1450,10 @@ csleep(void)
 void
 czombie(void)
 {
+  acquire(&ptable.lock);
   struct proc *p;
   uint ppID = 0;
 
-  acquire(&ptable.lock);
   cprintf("\nZombie List Processes:\n");
   for(p = ptable.pLists.zombie; p != 0; p = p->next){
     if(p->parent)

@@ -18,7 +18,7 @@
 #define INIT_GID      0  // Initial value of the gid for the init process
 #endif
 #ifdef CS333_P3P4
-#define MAXPRIO          5 // Maximum number of priority queues in the MLFQ
-#define TICKS_TO_PROMOTE 500
-#define MAX_BUDGET       100
+#define MAXPRIO          6 // Maximum number of priority queues in the MLFQ
+#define TICKS_TO_PROMOTE 800
+#define MAX_BUDGET       200
 #endif
