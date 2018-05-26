@@ -22,3 +22,8 @@
 #define TICKS_TO_PROMOTE 800
 #define MAX_BUDGET       200
 #endif
+#ifdef CS333_P5
+#define DEFAULT_UID     0
+#define DEFAULT_GID     0
+#define DEFAULT_MODE    0755
+#endif

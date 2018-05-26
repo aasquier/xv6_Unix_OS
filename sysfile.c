@@ -54,7 +54,7 @@ sys_dup(void)
 {
   struct file *f;
   int fd;
-  
+
   if(argfd(0, 0, &f) < 0)
     return -1;
   if((fd=fdalloc(f)) < 0)
@@ -92,7 +92,7 @@ sys_close(void)
 {
   int fd;
   struct file *f;
-  
+
   if(argfd(0, &fd, &f) < 0)
     return -1;
   proc->ofile[fd] = 0;
@@ -105,7 +105,7 @@ sys_fstat(void)
 {
   struct file *f;
   struct stat *st;
-  
+
   if(argfd(0, 0, &f) < 0 || argptr(1, (void*)&st, sizeof(*st)) < 0)
     return -1;
   return filestat(f, st);
@@ -353,7 +353,7 @@ sys_mknod(void)
   char *path;
   int len;
   int major, minor;
-  
+
   begin_op();
   if((len=argstr(0, &path)) < 0 ||
      argint(1, &major) < 0 ||
@@ -440,3 +440,50 @@ sys_pipe(void)
   fd[1] = fd1;
   return 0;
 }
+
+#ifdef CS333_P5
+int
+sys_chmod(void)
+{
+  char *pathname;
+  int mode;
+
+  if(argstr(0, &pathname) < 0)
+    return -1;
+  if(argint(1, &mode) < 0)
+    return -1;
+
+  if((mode < 0) || (mode > 1777))
+    return -1;
+
+  return chmod(pathname, mode);
+}
+
+int
+sys_chown(void)
+{
+  char *pathname;
+  int owner;
+
+  if(argstr(0, &pathname) < 0)
+    return -1;
+  if(argint(1, &owner) < 0)
+    return -1;
+
+  return chown(pathname, owner);
+}
+
+int
+sys_chgrp(void)
+{
+  char *pathname;
+  int group;
+
+  if(argstr(0, &pathname) < 0)
+    return -1;
+  if(argint(1, &group) < 0)
+    return -1;
+
+  return chgrp(pathname, group);;
+}
+#endif
