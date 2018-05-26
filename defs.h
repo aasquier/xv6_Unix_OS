@@ -52,9 +52,6 @@ struct inode*   nameiparent(char*, char*);
 int             readi(struct inode*, char*, uint, uint);
 void            stati(struct inode*, struct stat*);
 int             writei(struct inode*, char*, uint, uint);
-int             chmod(char*, int);
-int             chown(char*, int);
-int             chgrp(char*, int);
 
 // ide.c
 void            ideinit(void);

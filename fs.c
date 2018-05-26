@@ -674,23 +674,3 @@ nameiparent(char *path, char *name)
 {
   return namex(path, 1, name);
 }
-
-#ifdef CS333_P5
-int
-chmod(char *path, int mode)
-{
-  return 0;
-}
-
-int
-chown(char *path, int owner)
-{
-  return 0;
-}
-
-int
-chgrp(char *path, int group)
-{
-  return 0;
-}
-#endif
