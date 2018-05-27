@@ -9,7 +9,7 @@ main(int argc, char **argv)
   if(argc < 4 && argc > 1){
     rc = chmod(argv[2], atoo(argv[1]));
     if(rc == -1)
-      printf(2, "Invalid filename or User ID.");
+      printf(2, "Invalid filename or Mode.");
   }
 
   exit();

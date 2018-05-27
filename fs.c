@@ -234,11 +234,6 @@ iget(uint dev, uint inum)
   for(ip = &icache.inode[0]; ip < &icache.inode[NINODE]; ip++){
     if(ip->ref > 0 && ip->dev == dev && ip->inum == inum){
       ip->ref++;
-      #ifdef CS333_P5                       // TODO This may need removed TODO
-      ip->uid = DEFAULT_UID;
-      ip->gid = DEFAULT_GID;
-      ip->mode.asInt = DEFAULT_MODE;
-      #endif
       release(&icache.lock);
       return ip;
     }

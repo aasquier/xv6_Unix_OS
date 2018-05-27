@@ -466,6 +466,7 @@ sys_chmod(void)
 
   ilock(ip);
   ip->mode.asInt = mode;
+  iupdate(ip);
   iunlock(ip);
 
   end_op();
@@ -496,6 +497,7 @@ sys_chown(void)
 
   ilock(ip);
   ip->uid = owner;
+  iupdate(ip);
   iunlock(ip);
 
   end_op();
@@ -522,6 +524,7 @@ sys_chgrp(void)
 
   ilock(ip);
   ip->gid = group;
+  iupdate(ip);
   iunlock(ip);
 
   end_op();

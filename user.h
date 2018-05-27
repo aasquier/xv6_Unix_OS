@@ -59,3 +59,6 @@ void* memset(void*, int, uint);
 void* malloc(uint);
 void free(void*);
 int atoi(const char*);
+#ifdef CS333_P5
+int atoo(const char*);
+#endif
