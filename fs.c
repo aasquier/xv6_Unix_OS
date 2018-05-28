@@ -208,7 +208,7 @@ iupdate(struct inode *ip)
   dip->major = ip->major;
   dip->minor = ip->minor;
   dip->nlink = ip->nlink;
-  #ifdef CS333_P5                         // TODO Need bitwise flag copy?? TODO
+  #ifdef CS333_P5
   dip->uid = ip->uid;
   dip->gid = ip->gid;
   dip->mode.asInt = ip->mode.asInt;
@@ -296,7 +296,7 @@ ilock(struct inode *ip)
     ip->minor = dip->minor;
     ip->nlink = dip->nlink;
     ip->size = dip->size;
-    #ifdef CS333_P5                     // TODO Need flags bitwise copy ?? TODO
+    #ifdef CS333_P5
     ip->uid = dip->uid;
     ip->gid = dip->gid;
     ip->mode.asInt = dip->mode.asInt;
@@ -442,7 +442,7 @@ stati(struct inode *ip, struct stat *st)
   st->type = ip->type;
   st->nlink = ip->nlink;
   st->size = ip->size;
-  #ifdef CS333_P5                       // TODO Need flag bitwise copy too? TODO
+  #ifdef CS333_P5
   st->uid = ip->uid;
   st->gid = ip->gid;
   st->mode.asInt = ip->mode.asInt;
@@ -669,3 +669,80 @@ nameiparent(char *path, char *name)
 {
   return namex(path, 1, name);
 }
+
+#ifdef CS333_P5
+int
+chmod(char *path, int mode)
+{
+  struct inode *ip;
+
+  begin_op();
+
+  if(mode < 0 || mode > 1777){
+    end_op();
+    return -1;
+  }
+  if((ip = namei(path)) == 0){
+    end_op();
+    return -1;
+  }
+
+  ilock(ip);
+  ip->mode.asInt = mode;
+  iupdate(ip);
+  iunlock(ip);
+
+  end_op();
+  return 0;
+}
+
+int
+chown(char *path, int owner)
+{
+  struct inode *ip;
+
+  begin_op();
+
+  if(owner < 0 || owner > 32767){
+    end_op();
+    return -1;
+  }
+  if((ip = namei(path)) == 0){
+    end_op();
+    return -1;
+  }
+
+  ilock(ip);
+  ip->uid = owner;
+  iupdate(ip);
+  iunlock(ip);
+
+  end_op();
+  return 0;
+}
+
+int
+chgrp(char *path, int group)
+{
+  struct inode *ip;
+
+  begin_op();
+
+  if(group < 0){
+    end_op();
+    return -1;
+  }
+  if((ip = namei(path)) == 0){
+    end_op();
+    return -1;
+  }
+
+  ilock(ip);
+  ip->gid = group;
+  iupdate(ip);
+  iunlock(ip);
+
+  end_op();
+  return 0;
+}
+#endif

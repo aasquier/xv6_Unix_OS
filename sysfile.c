@@ -446,88 +446,50 @@ int
 sys_chmod(void)
 {
   char *path;
-  struct inode *ip;
   int mode;
 
-  begin_op();
-
-  if(argstr(0, &path) < 0 || (ip = namei(path)) == 0){
-    end_op();
+  if(argstr(0, &path) < 0){
     return -1;
   }
   if(argint(1, &mode) < 0){
-    end_op();
     return -1;
   }
   if(mode < 0 || mode > 1777){
-    end_op();
     return -1;
   }
 
-  ilock(ip);
-  ip->mode.asInt = mode;
-  iupdate(ip);
-  iunlock(ip);
-
-  end_op();
-  return 0;
+  return chmod(path, mode);;
 }
 
 int
 sys_chown(void)
 {
   char *path;
-  struct inode *ip;
   int owner;
 
-  begin_op();
-
-  if(argstr(0, &path) < 0 || (ip = namei(path)) == 0){
-    end_op();
+  if(argstr(0, &path) < 0){
     return -1;
   }
   if(argint(1, &owner) < 0){
-    end_op();
-    return -1;
-  }
-  if(owner < 0 || owner > 32767){
-    end_op();
     return -1;
   }
 
-  ilock(ip);
-  ip->uid = owner;
-  iupdate(ip);
-  iunlock(ip);
-
-  end_op();
-  return 0;
+  return chown(path, owner);;
 }
 
 int
 sys_chgrp(void)
 {
   char *path;
-  struct inode *ip;
   int group;
 
-  begin_op();
-
-  if(argstr(0, &path) < 0 || (ip = namei(path)) == 0){
-    end_op();
+  if(argstr(0, &path) < 0){
     return -1;
   }
   if(argint(1, &group) < 0){
-    end_op();
     return -1;
   }
 
-  ilock(ip);
-  ip->gid = group;
-  iupdate(ip);
-  iunlock(ip);
-
-  end_op();
-  return 0;
+  return chgrp(path, group);;
 }
 #endif
