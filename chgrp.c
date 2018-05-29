@@ -15,7 +15,7 @@ main(int argc, char **argv)
     }
     rc = chgrp(argv[2], group);
     if(rc == -1)
-      printf(2, "Invalid filename or Group ID.");
+      printf(2, "Invalid filename or Group ID.\n\n");
   }
   else
     printf(2, "Incorrect Number of Arguments.\n\n");

@@ -15,7 +15,7 @@ main(int argc, char **argv)
     }
     rc = chown(argv[2], owner);
     if(rc == -1)
-      printf(2, "Invalid filename or User ID.");
+      printf(2, "Invalid filename or User ID.\n\n");
   }
   else
     printf(2, "Incorrect Number of Arguments.\n\n");

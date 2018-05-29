@@ -23,7 +23,7 @@
 #define MAX_BUDGET       200
 #endif
 #ifdef CS333_P5
-#define DEFAULT_UID     0
-#define DEFAULT_GID     0
-#define DEFAULT_MODE    0755
+#define DEFAULT_UID     0       // Default uid for files created by mkfs when the file system is created
+#define DEFAULT_GID     0       // Default gid for files created by mkfs when the file system is created
+#define DEFAULT_MODE    0755    // Default mode for files created by mkfs when the file system is created
 #endif
