@@ -678,7 +678,7 @@ chmod(char *path, int mode)
 
   begin_op();
 
-  if(mode < 0 || mode > 1777){
+  if(mode < 0 || mode > 1023){              // 1023 in decimal = 1777 in octal
     end_op();
     return -1;
   }
@@ -690,7 +690,7 @@ chmod(char *path, int mode)
   ilock(ip);
   ip->mode.asInt = mode;
   iupdate(ip);
-  iunlock(ip);
+  iunlockput(ip);
 
   end_op();
   return 0;
@@ -715,7 +715,7 @@ chown(char *path, int owner)
   ilock(ip);
   ip->uid = owner;
   iupdate(ip);
-  iunlock(ip);
+  iunlockput(ip);
 
   end_op();
   return 0;
@@ -728,7 +728,7 @@ chgrp(char *path, int group)
 
   begin_op();
 
-  if(group < 0){
+  if(group < 0 || group > 32767){
     end_op();
     return -1;
   }
@@ -740,7 +740,7 @@ chgrp(char *path, int group)
   ilock(ip);
   ip->gid = group;
   iupdate(ip);
-  iunlock(ip);
+  iunlockput(ip);
 
   end_op();
   return 0;

@@ -454,7 +454,7 @@ sys_chmod(void)
   if(argint(1, &mode) < 0){
     return -1;
   }
-  if(mode < 0 || mode > 1777){
+  if(mode < 0 || mode > 1023){            // 1023 in decimal = 1777 in octal
     return -1;
   }
 
@@ -473,8 +473,10 @@ sys_chown(void)
   if(argint(1, &owner) < 0){
     return -1;
   }
+  if(owner < 0 || owner > 32767)
+    return -1;
 
-  return chown(path, owner);;
+  return chown(path, owner);
 }
 
 int
@@ -489,6 +491,8 @@ sys_chgrp(void)
   if(argint(1, &group) < 0){
     return -1;
   }
+  if(group < 0 || group > 32767)
+    return -1;
 
   return chgrp(path, group);;
 }

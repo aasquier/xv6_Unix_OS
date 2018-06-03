@@ -6,14 +6,31 @@ main(int argc, char **argv)
 {
   int rc;
   int mode;
+  char *md;
 
-  if(argc < 4 && argc > 1){
-    mode = atoi(argv[1]);
-    if(mode < 0 || mode > 1777){
-      printf(2, "Invalid Mode.\n\n");
+  if(argc == 3){
+    if(strlen(argv[1]) > 4){
+      printf(2, "Too many numbers for mode.\n\n");
       exit();
     }
-    rc = chmod(argv[2], atoo(argv[1]));
+    md = argv[1];
+    while(*md != '\0'){
+      if(*md == '+' || *md == '-'){
+        md++;
+        continue;
+      }
+      if(*md < '0' || *md > '7'){
+        printf(2, "Invalid Octal Representation.\n\n");
+        exit();
+      }
+      md++;
+    }
+    mode = atoo(argv[1]);
+    if(mode < 0 || mode > 1023){
+      printf(2, "Invalid mode.\n\n");
+      exit();
+    }
+    rc = chmod(argv[2], mode);
     if(rc == -1)
       printf(2, "Invalid Filename or Mode.\n\n");
   }

@@ -20,8 +20,8 @@ exec(char *path, char **argv)
   struct inode *ip;
   struct proghdr ph;
   pde_t *pgdir, *oldpgdir;
+
   #ifdef CS333_P5
-  int access = 0;
   struct stat st;
   #endif
 
@@ -36,13 +36,15 @@ exec(char *path, char **argv)
   #ifdef CS333_P5
   stati(ip, &st);
 
-  if(st.mode.flags.o_x == 1)
-    access = 1;
-  if(st.mode.flags.g_x == 1 && proc->gid == st.gid)
-    access = 1;
-  if(st.mode.flags.u_x == 1 && proc->uid == st.uid)
-    access = 1;
-  if(!access)
+  if(proc->uid == st.uid){
+    if(st.mode.flags.u_x == 0)
+      goto bad;
+  }
+  else if(proc->gid == st.gid){
+    if(st.mode.flags.g_x == 0)
+      goto bad;
+  }
+  else if(st.mode.flags.o_x == 0)
     goto bad;
   #endif
 

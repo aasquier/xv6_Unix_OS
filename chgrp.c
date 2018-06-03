@@ -9,7 +9,7 @@ main(int argc, char **argv)
 
   if(argc < 4 && argc > 1){
     group = atoi(argv[1]);
-    if(group < 0){
+    if(group < 0 || group > 32767){
       printf(2, "Invalid Group ID.\n\n");
       exit();
     }
