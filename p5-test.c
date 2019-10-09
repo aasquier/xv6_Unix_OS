@@ -1,5 +1,5 @@
 // A grand unified test for CS333 project 5.
-// P5 adds protection (via UNIX-like mode bits) to xv6. This 
+// P5 adds protection (via UNIX-like mode bits) to xv6. This
 // program is provided for testing.
 
 #include "types.h"
@@ -141,7 +141,7 @@ doGidTest (char **cmd)
     return NOPASS;
   }
   for (i=0; i<badgidcount; i++) {
-    rc = setgid(badgids[i]); 
+    rc = setgid(badgids[i]);
     if (rc == 0) {
       printf(2, "Tried to set the gid to a bad value (%d) and setgid()failed to fail. rc == %d\n",
 		      badgids[i], rc);
@@ -161,7 +161,7 @@ doGidTest (char **cmd)
 }
 
 static int
-doChmodTest(char **cmd) 
+doChmodTest(char **cmd)
 {
   int i, rc, mode, testmode;
   struct stat st;
@@ -188,7 +188,7 @@ doChmodTest(char **cmd)
 }
 
 static int
-doChownTest(char **cmd) 
+doChownTest(char **cmd)
 {
   int rc, uid1, uid2;
   struct stat st;
@@ -218,7 +218,7 @@ doChownTest(char **cmd)
 }
 
 static int
-doChgrpTest(char **cmd) 
+doChgrpTest(char **cmd)
 {
   int rc, gid1, gid2;
   struct stat st;
@@ -248,7 +248,7 @@ doChgrpTest(char **cmd)
 }
 
 static int
-doExecTest(char **cmd) 
+doExecTest(char **cmd)
 {
   int i, rc, uid, gid;
   struct stat st;

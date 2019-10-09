@@ -1,7 +1,7 @@
 # Set flag to correct CS333 project number: 1, 2, ...
 # 0 == original xv6-pdx distribution functionality
-CS333_PROJECT ?= 0
-CS333_CFLAGS = 
+CS333_PROJECT ?= 5
+CS333_CFLAGS =
 CS333_UPROGS =
 CS333_TPROGS =
 PRINT_SYSCALLS ?= 0
@@ -16,15 +16,15 @@ CS333_UPROGS += _date
 endif
 
 ifeq ($(CS333_PROJECT), 2)
-CS333_CFLAGS += -DCS333_P1 -DUSE_BUILTINS -DCS333_P2
+CS333_CFLAGS += -DCS333_P1 -DUSE_BUILTINS -DCS333_P2 -DUSE_BUILTINS_NOT_YET
 CS333_UPROGS += _date _time _ps
-CS333_TPROGS += 
+CS333_TPROGS += _testuidgid _p2testsuite _pstest
 endif
 
 ifeq ($(CS333_PROJECT), $(filter $(CS333_PROJECT), 3 4))
 CS333_CFLAGS += -DCS333_P1 -DUSE_BUILTINS -DCS333_P2 -DCS333_P3P4
 CS333_UPROGS += _date _time _ps
-CS333_TPROGS +=
+CS333_TPROGS += _p3testsuite _p4test _p4testsuite
 endif
 
 ifeq ($(CS333_PROJECT), 5)
@@ -33,7 +33,7 @@ CS333_CFLAGS += -DUSE_BUILTINS -DCS333_P1 -DCS333_P2 \
 # if P3 and P4 functionality not desired
 # CS333_CFLAGS += -DCS333_P1 -DUSE_BUILTINS -DCS333_P2 -DCS333_P5
 CS333_UPROGS += _date _time _ps _chgrp  _chmod _chown
-CS333_TPROGS += # _p5-test _testsetuid
+CS333_TPROGS +=  _p5-test _testsetuid
 CS333_MKFSFLAGS += -DCS333_P2 -DCS333_P5
 endif
 
@@ -204,7 +204,7 @@ fs.img: mkfs README README-PSU $(UPROGS)
 
 -include *.d
 
-clean: 
+clean:
 	rm -rf *.tex *.dvi *.idx *.aux *.log *.ind *.ilg \
 	*.o *.d *.asm *.sym vectors.S bootblock entryother \
 	initcode initcode.out kernel xv6.img fs.img mkfs \
@@ -243,13 +243,13 @@ CPUS := 2
 endif
 QEMUOPTS = -hdb fs.img xv6.img -smp $(CPUS) -m 512 $(QEMUEXTRA)
 
-qemu-nox: fs.img xv6.img 
+qemu-nox: fs.img xv6.img
 	$(QEMU) -nographic $(QEMUOPTS)
 
 .gdbinit: .gdbinit.tmpl
 	sed "s/localhost:1234/localhost:$(GDBPORT)/" < $^ > $@
 
-qemu-nox-gdb: fs.img xv6.img .gdbinit 
+qemu-nox-gdb: fs.img xv6.img .gdbinit
 	@echo "*** Now run 'gdb'." 1>&2
 	$(QEMU) -nographic $(QEMUOPTS) -S $(QEMUGDB)
 

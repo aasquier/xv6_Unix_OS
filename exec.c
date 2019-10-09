@@ -6,6 +6,9 @@
 #include "defs.h"
 #include "x86.h"
 #include "elf.h"
+#ifdef CS333_P5
+#include "stat.h"
+#endif
 
 int
 exec(char *path, char **argv)
@@ -18,6 +21,10 @@ exec(char *path, char **argv)
   struct proghdr ph;
   pde_t *pgdir, *oldpgdir;
 
+  #ifdef CS333_P5
+  struct stat st;
+  #endif
+
   begin_op();
   if((ip = namei(path)) == 0){
     end_op();
@@ -25,6 +32,21 @@ exec(char *path, char **argv)
   }
   ilock(ip);
   pgdir = 0;
+
+  #ifdef CS333_P5
+  stati(ip, &st);
+
+  if(proc->uid == st.uid){
+    if(st.mode.flags.u_x == 0)
+      goto bad;
+  }
+  else if(proc->gid == st.gid){
+    if(st.mode.flags.g_x == 0)
+      goto bad;
+  }
+  else if(st.mode.flags.o_x == 0)
+    goto bad;
+  #endif
 
   // Check ELF header
   if(readi(ip, (char*)&elf, 0, sizeof(elf)) < sizeof(elf))
@@ -92,6 +114,10 @@ exec(char *path, char **argv)
   proc->sz = sz;
   proc->tf->eip = elf.entry;  // main
   proc->tf->esp = sp;
+  #ifdef CS333_P5
+  if(st.mode.flags.setuid == 1)
+    proc->uid = st.uid;
+  #endif
   switchuvm(proc);
   freevm(oldpgdir);
   return 0;

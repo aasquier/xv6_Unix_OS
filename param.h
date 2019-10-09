@@ -13,3 +13,17 @@
 // #define FSSIZE       1000  // size of file system in blocks
 #define FSSIZE       2000  // size of file system in blocks  // CS333 requires a larger FS.
 
+#ifdef CS333_P2
+#define INIT_UID      0  // Initial value of the uid for the init process
+#define INIT_GID      0  // Initial value of the gid for the init process
+#endif
+#ifdef CS333_P3P4
+#define MAXPRIO          6 // Maximum number of priority queues in the MLFQ
+#define TICKS_TO_PROMOTE 800
+#define MAX_BUDGET       200
+#endif
+#ifdef CS333_P5
+#define DEFAULT_UID     0       // Default uid for files created by mkfs when the file system is created
+#define DEFAULT_GID     0       // Default gid for files created by mkfs when the file system is created
+#define DEFAULT_MODE    00755    // Default mode for files created by mkfs when the file system is created
+#endif
